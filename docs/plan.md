@@ -88,30 +88,44 @@ These apply to every phase.
 
 Covers the screens in [design §3](design.md#screens): Title, Host/Join, Lobby, Draft, and Result.
 
+Decided at the start of this phase: **uGUI**, and a **tabletop presentation** (see [design: Tabletop presentation](design.md#tabletop-presentation)): `PlayMat.jpg` on a sci-fi desk, menus as panels lying on the desk, and a camera that moves between shots.
+
 ### Tasks
 
 **Shell**
 
-- [ ] Screen manager: one Canvas, screens as prefabs, a simple navigation stack (forward, back, replace)
-- [ ] Canvas Scaler (Scale With Screen Size) with a reference resolution that suits 16:9 desktop and 4:3 tablets
-- [ ] Visual style: fonts (TextMeshPro assets), colors from the board art, button and panel styles, focus and pressed states
-- [ ] Shared components: primary/secondary buttons, text field, toast/error banner, modal dialog, loading spinner
-- [ ] Session stub: a `ISessionService` interface with a fake implementation that simulates host, join, opponent arriving, and errors after short delays
+- [x] Table scene built at startup by `AppRoot`: desk surface shader, `PlayMat.jpg`, camera, EventSystem (Input System UI module)
+- [x] `CameraRig` with shots (menu, draft, board, result) that solve for the camera distance at any aspect ratio, with eased transitions
+- [x] Navigation: `Navigator` + `TableScreen` / `MenuScreen` (panels settle onto the desk and lift away)
+- [x] Visual style: `Theme` asset, Chakra Petch + Share Tech Mono TMP fonts, palette from the mat art, generated chamfered 9-slice panel sprites
+- [x] Shared components (`Ui`): panels with shadow, text styles, primary/secondary/quiet buttons with hover, pressed, selected, and disabled states, text input
+- [x] Screen-space `Hud`: status bar, toasts, hover details, action buttons
+- [x] Session stub: `ISessionService` (in `Compile.Net`) and `FakeSessionService`, driven by a clock rather than threads so it works in WebGL and in tests
+- [x] Draft order in the engine (`Compile.Engine.Draft`), reusable in Phase 3
+- [ ] Modal dialog and loading spinner (not needed by any Phase 1 screen; build when first needed)
 
 **Screens**
 
-- [ ] **Title:** game logo, display name field (saved locally), Host and Join buttons, Rules link, version number
-- [ ] **Host:** shows a fake 6-character room code with Copy, "Waiting for opponent…", Cancel
-- [ ] **Join:** code field (uppercase, 6 characters, validation), Join button, error messages ("Room not found", "Room is full")
-- [ ] **Lobby:** both display names, ready toggles, first-player choice (Random / Host / Guest), Start when both are ready, Leave
-- [ ] **Draft:** all Protocol cards (Loading side) from the card data, whose turn and picks remaining (1-2-2-1), picks fill left → middle → right slots for each player. The stub opponent picks at random after a short delay
-- [ ] **Result:** winner, both players' Protocols (Compiled side), Rematch and Leave
-- [ ] **Rules:** in-game rules page (from `rules.md`, simplified) reachable from Title
+- [x] **Title:** title, display name field (saved locally), Host and Join buttons, How to play, version number
+- [x] **Host:** 6-character room code with Copy (browser clipboard in WebGL), "Waiting for an opponent…", Cancel
+- [x] **Join:** code field (uppercase, letters and numbers only), Join button, error messages. Codes starting with X or F trigger "Room not found" and "Room is full"
+- [x] **Lobby:** both display names with host/guest and ready state, ready toggle, first-player choice (Random / Host / Guest, host only), Start when both are ready, Leave
+- [x] **Draft:** played on the mat. 15 Protocols spread over the local lanes, status shows the pick number and whose turn, the next slot pulses, picks glide into their slot, hover shows the tagline and focus. The stub opponent picks at random
+- [x] **Board preview:** tilted view over the local half with the drafted Protocols, plus debug actions (simulate win or loss, opponent leaves, leave game)
+- [x] **Result:** Victory/Defeat panel on the local lanes, the winner's Protocols flip to Compiled, Rematch (loser drafts first) and Leave
+- [x] **Rules:** scrollable condensed rules (`rules-summary.txt`) reachable from Title
 
 **Layout**
 
-- [ ] Every screen works in wide (landscape) and tall (portrait) aspect ratios
-- [ ] Touch-friendly sizes (44 pt minimum targets); nothing depends on hover
+- [x] Every screen works in wide (landscape) and tall (portrait) aspect ratios (checked with captures at 1600 × 900 and 820 × 1180)
+- [x] Touch-friendly sizes: controls are 96 canvas px tall, about 44 pt or larger at the menu framing
+- [ ] Hover-only detail: the draft's Protocol details appear on hover, so touch players can't see them before picking. Add tap-to-preview with the Phase 2 card zoom
+
+**Tests:** 24 EditMode tests pass (card data, draft order, fake session service, room code validation).
+
+**Build:** WebGL builds with no errors; the download is 21.1 MB compressed (10.8 MB data + 10.0 MB code), under the 25 MB target. Getting there took crunch compression on all art and atlases, padding the mat into a 2048 × 4096 texture so it compresses with mipmaps, and turning off the Unity splash screen.
+
+**Status:** the full flow (Title → Host → Lobby → Draft → board preview → Result → Rematch, plus Join errors and Rules) has been played through in the Editor at wide and tall sizes. Still to do: play the WebGL build in a desktop browser and on a tablet.
 
 **Done when:** you can click through Title → Host → Lobby → Draft → (placeholder board) → Result → Rematch → Draft in the Editor and in a WebGL build, in landscape and portrait window sizes, and the Join error states can be triggered from the stub.
 

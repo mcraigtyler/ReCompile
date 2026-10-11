@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8b8dd58a25ffbc40975cd75206f439b, type: 3}
+  m_Name: Theme
+  m_EditorClassIdentifier: Compile.Client::Compile.Client.UI.Theme
+  displayFont: {fileID: 11400000, guid: 2dbeac720f177b9478f8886375d02236, type: 2}
+  headingFont: {fileID: 11400000, guid: 24fbe48868fcd7145b94472ba93596fb, type: 2}
+  bodyFont: {fileID: 11400000, guid: f202295b32362e247bda40ce70fe93ac, type: 2}
+  monoFont: {fileID: 11400000, guid: 1dc66fdf13d77c048b35ef849ed2b11a, type: 2}
+  chamferFill: {fileID: 21300000, guid: c6472751797343147883d27e3d1bda89, type: 3}
+  chamferFrame: {fileID: 21300000, guid: e789084922ba2094fa5ac4da4dbb5a30, type: 3}
+  playMat: {fileID: 21300000, guid: f71d4ca054f982e47a986c3439b0c407, type: 3}
+  cardBack: {fileID: 21300000, guid: 4639a43ff8dd75c478ccbaf00c3add8d, type: 3}
+  controlNeutral: {fileID: 21300000, guid: 40c64c4740a0e5c45813873f460476ca, type: 3}
+  tableMaterial: {fileID: 2100000, guid: 8f1e939782e2d6144aa1555401859eda, type: 2}
+  spriteUnlitMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}

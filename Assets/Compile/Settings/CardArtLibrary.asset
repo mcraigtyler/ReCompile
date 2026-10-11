@@ -1,0 +1,256 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 159f5c69d15e5634ba77b206e43ab722, type: 3}
+  m_Name: CardArtLibrary
+  m_EditorClassIdentifier: Compile.Client::Compile.Client.Cards.CardArtLibrary
+  missing: {fileID: 21300000, guid: a051f2986ff398048937b6d62d1573db, type: 3}
+  protocols:
+  - protocol: Apathy
+    loading: {fileID: 21300000, guid: f55f7ac29bdcdd8449ac5e3667152455, type: 3}
+    compiled: {fileID: 21300000, guid: 461ac16202e0f294b8d60055e66a90fa, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: c5a1d76aa2b1ea34891b87b090b6182b, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: d0ae77d4c4a84ea4d9f22e76f3a32cf1, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 57dd66b868e417a4a935761e9d45044a, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 235e1a1303e7ca94f9d4fe5538555cb1, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 6f7320707786be449b60f5b15dda3ecc, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 4879cba5632c91a43b9f2b1498f1c954, type: 3}
+  - protocol: Darkness
+    loading: {fileID: 21300000, guid: c274b2896bd4bb144a6e2669a8fda15c, type: 3}
+    compiled: {fileID: 21300000, guid: 40e2aec0c2785c545ad7a15dfea74be2, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 3c2959c415e1f4e4ca30e075db5b666e, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 39a5387358a39c04a8f6476f5e8a5960, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 3ce09e9736b779e4b99a4edfefdd35ba, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 6214e7f05dca2364d8b8aa1c65ed8832, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 64c19ed00f8dce948b596ae22505d260, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 6a2e1640be4bb7d43958d1737613425a, type: 3}
+  - protocol: Death
+    loading: {fileID: 21300000, guid: dd2de7470c175de4bbd880f93be67110, type: 3}
+    compiled: {fileID: 21300000, guid: 85db7f3f8bedfc5438709d810ffd6e8c, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: d3f1d08a612303d42990c4e039033d28, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 3005481d85054a648b4d34c1c5263884, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: ebb468b6cb8a05c48bbea8462ece68ad, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: af6584de9c0753c4ead3764079cfcb15, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: ee42d07301f31fc44a98634c3bd5bf13, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: ccb68fc03244055479b445f782df535a, type: 3}
+  - protocol: Fire
+    loading: {fileID: 21300000, guid: 17046a86b9abbf34e8fd92eab49f736b, type: 3}
+    compiled: {fileID: 21300000, guid: caaa5ecc6d409ca46bf1e68993846280, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: add4614169af75c4095b72ec60f9fcff, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: a5a4ff893d2ffc54fa72773adf943ecf, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: def985db7670cc146b71183f0d29472c, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 7c9ae781872e6bc4c866f130fff32a6d, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: b1d8f8e2f4be53a4ba89025f6d099e90, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: eafb05e02aadad64d8df030b6f4ceae6, type: 3}
+  - protocol: Gravity
+    loading: {fileID: 21300000, guid: bfd9936dd8b4275479cb43795d94d051, type: 3}
+    compiled: {fileID: 21300000, guid: 7aefc08f861e8814abe3966af13fef39, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 57c803f83ee21f24482c6286067e3a88, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 00319580cc491a943ae74181092424f3, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 7d4166e4f5761074a975b0c5a219d10c, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 3defa19d5c915f548b6fd55c08e97850, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: df8fb3190a4b9054b90f1b79b5756088, type: 3}
+    - value: 6
+      sprite: {fileID: 21300000, guid: 05d2df99479ad1e438978c97d33a47e5, type: 3}
+  - protocol: Hate
+    loading: {fileID: 21300000, guid: 31cc9493b416ca049889fb4e42bf0cc4, type: 3}
+    compiled: {fileID: 21300000, guid: e2d78b68f0970b646b9e2bfeb57d5fa5, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 2c477cf838042604998b807fd221d901, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: f0d5e7ff9f76c634c8445a63c8fcf96a, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: daa8c5db88b1d1441883b8bacad75a6d, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 5433b8e8a639d0d42bce27a8dbed2b4a, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 24bb323922d0ef540afcabf8e1bc2aff, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 137357b77e6554345870c4d7ce57e3bf, type: 3}
+  - protocol: Life
+    loading: {fileID: 21300000, guid: 8eb2ee977598eb04b982a6190b1aa04f, type: 3}
+    compiled: {fileID: 21300000, guid: 7b6f2542150d788438c7fbec166ff49c, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: aff3382d9e75bda48b16238726caad07, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: f3f0413a5e894db4888a46b31211e4e2, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 902e17cf97a93654bb17f7877f977520, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 2c050c54b77a42e4bb4ac13fac549120, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: b1e588ea962d6d04fb99cb740ced3378, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 912d8e2d03cf3fc41a69abfe17a669bf, type: 3}
+  - protocol: Light
+    loading: {fileID: 21300000, guid: eef109527cde7ad4689099e7b32c4838, type: 3}
+    compiled: {fileID: 21300000, guid: f2d6b22cbcf9085488c5e9888b533e33, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 46708b3edeb57ff43a06326ea8f6052f, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 4c18a6f59dc23e44fbbc536346a56686, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 5c8b7a41c333ac6408068d2be001844a, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: bccd5c99f6468f1458564d94aa203c2d, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 0cf5a74c7b1da93468091bec883556f2, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: ea46c806b4fdf2949bfba062995a2529, type: 3}
+  - protocol: Love
+    loading: {fileID: 21300000, guid: a881cb0cacff69e41b30d02507764e61, type: 3}
+    compiled: {fileID: 21300000, guid: 943ce4fd3f4291b4e9ea7777083b25cb, type: 3}
+    cards:
+    - value: 1
+      sprite: {fileID: 21300000, guid: 171248a328ca1e64c8e14541495247e5, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 4b45429ab6f76d342959f12d8acac911, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 481d9ac4b06fb694c88e230be220cedf, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 5ed3dd9c4bc0e324c8a136df37ad64fe, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: b4e8bef52c9956441b73efb18b3f2789, type: 3}
+    - value: 6
+      sprite: {fileID: 21300000, guid: 5321e503968fe544ea20051ef7b8b743, type: 3}
+  - protocol: Metal
+    loading: {fileID: 21300000, guid: cee6753868daf554f9a56da0fdffcf80, type: 3}
+    compiled: {fileID: 21300000, guid: 2d1a001e36445e7409121a2657f9b219, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 15b0b6df0d3c001438daf2be0f637ef7, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: ba95faa7a081d264a90bf0a22c14dc4d, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 9e7d64e52df68104087e42b00e4c0368, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 5339a80c869dde346aa0d6f5b5a5755d, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: eecd54d5f93094d469c3b338acd3e885, type: 3}
+    - value: 6
+      sprite: {fileID: 21300000, guid: 924781b4b3bd181419c74af4a0cf8712, type: 3}
+  - protocol: Plague
+    loading: {fileID: 21300000, guid: 3d195ffcc2be14248b1505b8e24b7789, type: 3}
+    compiled: {fileID: 21300000, guid: c8dfff78f2d2db648a5d9b339a47c46d, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: b771fe32c6dad8e4cad65de4cb774494, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: c9b9c2d58eab2914c84ebf3c174474aa, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 4f752104da7b8f74fbc07c4fef5ad249, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 54266ffdf7738b248b16824dcd6f4b89, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 50b865639445a564abb7bc522721edf5, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 8c39515f106a5a9408ebd863e252896a, type: 3}
+  - protocol: Psychic
+    loading: {fileID: 21300000, guid: 9c3487bb6531f834bb0325d11948ea7d, type: 3}
+    compiled: {fileID: 21300000, guid: 57a71bacc6f69374f9d47b3117421858, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 12c0311d1b06d43469fe42a5d34e5896, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 037c58aeafa71954090ab1663368461e, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 8a0bbc5cf1037c4478fe7bf5ae2ec457, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: a1c479c9b50cfec4d95c9333c6fc23ca, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: 546eb28128d89da409308b3eb8531056, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 47853cbc8bf060049b808c12edd01c66, type: 3}
+  - protocol: Speed
+    loading: {fileID: 21300000, guid: fb4b6b9e4ca22bf42816ae6eb91f4353, type: 3}
+    compiled: {fileID: 21300000, guid: 216f16226cdc2e04a9d8baf2af090e5d, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: 5d7a4199bc009194bb21b6c83abbb06d, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 8588ff1ad30cbba438f3cdf51acf04b2, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: ad500f58571876745b52f195eb154c9d, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: 2e6f07d344b5f644dac6a7f0656902f4, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: cf66df8f68b4bd24cb4be605b1e02c47, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 7a32f46e7a4b4924780de581f2d1a556, type: 3}
+  - protocol: Spirit
+    loading: {fileID: 21300000, guid: 614202ccc2b758445b65705328b5c588, type: 3}
+    compiled: {fileID: 21300000, guid: 72682c94a22c5174ea20ca988cc7f7cb, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: a2a3bbecff853bd47b8ed350672801e8, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 9e21d3df1aed8094d9f84eee57673d68, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: eb193282135c47448bb7680f89eb8b69, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: b2e72c206b06b2f4a95ae6c8b5d10ca0, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: edf90818af671be45bd6d5bf92fcbaa7, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: dc46faff3f8df004fb314350174857af, type: 3}
+  - protocol: Water
+    loading: {fileID: 21300000, guid: e722bbc40f7dc0240972e6b140a6e8fe, type: 3}
+    compiled: {fileID: 21300000, guid: 39adb60115b7fad47bbf7d53f2581066, type: 3}
+    cards:
+    - value: 0
+      sprite: {fileID: 21300000, guid: d6131064569959e419841bb78f04b3d2, type: 3}
+    - value: 1
+      sprite: {fileID: 21300000, guid: 2241857a437fb6743bb7174d416d2a43, type: 3}
+    - value: 2
+      sprite: {fileID: 21300000, guid: 546e2dce426058a4e8fad09032815dbf, type: 3}
+    - value: 3
+      sprite: {fileID: 21300000, guid: dbb88f11f27f9174db9daa86134a4e79, type: 3}
+    - value: 4
+      sprite: {fileID: 21300000, guid: b3ac0512b20815d4f998311d08545eed, type: 3}
+    - value: 5
+      sprite: {fileID: 21300000, guid: 3ffcc86cc0f4cc341b425cecb066d60d, type: 3}

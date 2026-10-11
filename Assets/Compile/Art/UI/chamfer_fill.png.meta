@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: b94139870b4307d499d7a6a3cb584c69
+guid: c6472751797343147883d27e3d1bda89
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3254779602812191047
-    second: background_1_0
+      213: 9178931357417330803
+    second: chamfer_fill_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -37,8 +37,8 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 1
-    aniso: 1
+    filterMode: 2
+    aniso: 4
     mipBias: 0
     wrapU: 1
     wrapV: 1
@@ -52,7 +52,7 @@ TextureImporter:
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
   spritePixelsToUnits: 100
-  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteBorder: {x: 32, y: 32, z: 32, w: 32}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
   alphaIsTransparency: 1
@@ -74,12 +74,12 @@ TextureImporter:
   platformSettings:
   - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
-    maxTextureSize: 2048
+    maxTextureSize: 1024
     resizeAlgorithm: 0
     textureFormat: -1
     textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
+    compressionQuality: 60
+    crunchedCompression: 1
     allowsAlphaSplitting: 0
     overridden: 0
     ignorePlatformSupport: 0
@@ -115,13 +115,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: background_1_0
+      name: chamfer_fill_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 1398
-        height: 1500
+        width: 96
+        height: 96
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -130,8 +130,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 9be31302233b4d2d0800000000000000
-      internalID: -3254779602812191047
+      spriteID: 378dd80007d126f70800000000000000
+      internalID: 9178931357417330803
       vertices: []
       indices: 
       edges: []

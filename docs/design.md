@@ -37,6 +37,8 @@ A browser-playable version of the card game **Compile**. Two players meet with a
 | Card scope | All 15 Protocols in `resources/img/cards` | Main Set 1 (12) plus Apathy, Hate, and Love. |
 | Identity | Guest only: anonymous sign-in plus a display name | No account system to build or secure. |
 | Platforms | Desktop browsers and large tablets (touch). No phones. | Tablets are big enough for the board; phones aren't. |
+| Presentation | A tabletop: `PlayMat.jpg` on a sci-fi desk, menus as panels lying on the desk, one camera moving between shots. | Feels like playing the physical game; one framing system handles wide and tall screens. |
+| UI system | uGUI (world-space canvases on the table, a screen-space HUD), built from code with a shared `Theme`. | Mature, works in WebGL and with touch; code-built UI keeps every screen consistent. |
 
 ## 3. Player Experience
 
@@ -63,15 +65,26 @@ flowchart LR
 | **Title** | Display name field (saved locally), Host and Join buttons, link to the rules. |
 | **Host / Join** | Host sees the room code with a copy button and "Waiting for opponent…". Join has a code field with validation and clear error messages ("Room not found", "Room is full"). |
 | **Lobby** | Both names, ready toggles. Host picks who drafts first: **random** (default) or host/guest. The rulebook's "youngest player" rule becomes a choice or a coin flip. |
-| **Draft** | All 15 Protocol cards (Loading side). Shows whose pick it is and how many picks remain (1-2-2-1). Picks fill left → middle → right spaces in order. |
+| **Draft** | Played on the mat: all 15 Protocol cards (Loading side) are spread over the local player's lanes. A status bar shows whose pick it is and how many remain (1-2-2-1). Each pick glides into its owner's next Protocol slot (left → middle → right), and the slot it will fill pulses. |
 | **Game** | The board (see below). |
-| **Result** | Winner, final board, Rematch and Leave buttons. Rematch keeps the same room and starts a new draft. |
+| **Result** | A panel resting on the local lanes with the winner, Rematch, and Leave. The winner's Protocols flip to their Compiled side. Rematch keeps the same room and starts a new draft; the loser drafts first. |
+| **Rules** | A condensed, scrollable rules summary (`Assets/Compile/Data/rules-summary.txt`). |
+
+### Tabletop presentation
+
+The game is presented as a physical table rather than flat screens:
+
+- **The desk:** a dark sci-fi console surface (`TableSurface.shader`): faint world-space grid, a soft violet glow under the mat, and a contact shadow at the mat's edge.
+- **The mat:** `PlayMat.jpg` (1398 × 3788; centered in a 2048 × 4096 texture in the project) is one two-player mat lying at the table origin, the local player's half toward the camera. Its measured slots and lanes are in `MatLayout.cs`.
+- **Menus lie on the desk:** each menu (Title, Host, Join, Lobby, Rules) is a world-space panel resting on the desk just past the near edge of the mat, with a drop shadow. Panels settle onto the desk when they appear and lift away when they leave.
+- **One camera, several shots:** a `CameraRig` moves between framings (menu panel, draft, board, result). Each shot names a rectangle of the table and a tilt; the rig solves for the camera distance that keeps that rectangle on screen at the current aspect ratio, so wide and tall screens both work without separate layouts for menus.
+- **Screen-space HUD:** only things that aren't objects on the table (status, short messages, hover details, debug actions) use a screen-space overlay.
 
 ### Game board layout
 
-Matches the physical table and `board-setup.html`:
+Matches the physical table:
 
-- Local player's mat at the bottom, opponent's mat at the top rotated 180°, Protocols meeting at the center. Board art is `resources/img/background_1.jpg`.
+- `PlayMat.jpg` with the local player's lanes and Protocols in front, the opponent's half beyond, seen from a tilted seat over the local half.
 - Local hand fanned along the bottom edge. Opponent's hand shown as card backs (count only).
 - Deck and trash beside each mat with counts. Trashes are public: click to browse.
 - Control component on the center line, shown neutral or next to whoever holds it.
@@ -93,12 +106,12 @@ The game page fills the browser window and re-lays itself out on resize and rota
 
 | Layout | When | Arrangement |
 |---|---|---|
-| **Wide** | Width ≥ height | Mats in the center column. Deck, trash, and Control beside the mats. Event log in a side panel that can collapse. |
-| **Tall** | Height > width | Mats fill the width. Deck, trash, and counts sit in a strip above (opponent) and below (you) the mats. Event log becomes a drawer. |
+| **Wide** | Width ≥ height | The mat in the center with desk on both sides. Deck, trash, and Control beside the mat. Event log in a side panel that can collapse. |
+| **Tall** | Height > width | The mat fills the width. Deck, trash, and counts sit in a strip above (opponent) and below (you) the mat. Event log becomes a drawer. |
 
 Rules for both layouts:
 
-- The UI scales with screen size (Canvas Scaler, *Scale With Screen Size*), so cards keep their proportions between 4:3 and 21:9 (and 3:4 in portrait).
+- Table objects are framed by the camera rig, so they keep their proportions at any aspect ratio. The screen-space HUD uses a Canvas Scaler (*Scale With Screen Size*, 1920 × 1080, match 0.5).
 - Card text is too small to read at board size on a tablet, so the zoomed card view is the main way to read cards, not a convenience.
 - Every touch target is at least 44 × 44 pt.
 - Nothing relies on hover, right-click, or keyboard modifiers. Those are shortcuts only; every action has an on-screen control.
@@ -316,7 +329,10 @@ The mitigation path is already built into the architecture: because the engine h
 - **Card back:** `Cardback.gif` for face-down cards, hands, and decks.
 - **Control:** `Control/A.gif` and `Control/B.gif` (check which side means what; the rulesheet doesn't say).
 - **Unknown card:** `404.jpg` as a fallback if an image is missing.
-- **Board:** `background_1.jpg` (1398 × 1500) as each player's mat. Lane positions are measured in `board-setup.html`.
+- **Board:** `resources/img/PlayMat.jpg` (1398 × 3788), one mat for both players. The game uses `Assets/Compile/Art/Board/PlayMat.png`, the same image centered in a transparent 2048 × 4096 texture. At its original size, the mat with mipmaps couldn't be GPU-compressed (some mip levels aren't multiples of 4), so it shipped uncompressed at 21–28 MB; the power-of-two texture compresses at every mip level. Centering keeps the measured layout valid. Slot and lane positions are in `MatLayout.cs`.
+- **Compression:** all card and board art and every atlas use crunched compression (quality 60) to keep the WebGL download small. The Unity splash screen is off; the page template shows its own loading bar. (`background_1.jpg`, a single player's half, is kept in `resources/img` for `board-setup.html` but isn't used in the game.)
+- **Fonts:** Chakra Petch (display, headings, body) and Share Tech Mono (terminal labels, room codes), both SIL Open Font License, with dynamic TextMeshPro SDF assets.
+- **UI sprites:** `chamfer_fill.png` and `chamfer_frame.png`, generated by `ClientSetup`, are 9-sliced panel shapes with the mat's chamfered corners.
 - **Atlases:** `Assets/Compile/Art/Atlases/` has one Sprite Atlas (V2) per Protocol (its 6 cards plus both Protocol sides) and a `Shared` atlas (card back, Control, `404`, UI icons). The board image is too large to pack. `CardAtlasGenerator` rebuilds them before every build, so new art is picked up automatically.
 
 ## 8. WebGL Build

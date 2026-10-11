@@ -1,0 +1,31 @@
+<color=#E58BFF><b>GOAL</b></color>
+Compile all three of your Protocols before your opponent does. You compile a line by building enough value in it.
+
+<color=#E58BFF><b>SETUP</b></color>
+Players draft Protocols 1-2-2-1: the first player takes one, the second takes two, the first takes two, and the second takes the last. Each pick fills your left, middle, then right space. Your three Protocols face your opponent's to form three <b>lines</b>.
+Shuffle the 6 cards of each of your Protocols into an 18-card deck and draw 5.
+
+<color=#E58BFF><b>YOUR TURN</b></color>
+<color=#BFF4F4>START</color>  Use any "Start" effects on your cards.
+<color=#BFF4F4>CONTROL</color>  If you lead in at least 2 lines, take the Control component.
+<color=#BFF4F4>COMPILE</color>  If you must compile, that is your whole action this turn.
+<color=#BFF4F4>ACTION</color>  Play 1 card, or Refresh (draw back up to 5). With no cards in hand, you must Refresh.
+<color=#BFF4F4>CACHE</color>  If you hold more than 5 cards, discard down to 5.
+<color=#BFF4F4>END</color>  Use any "End" effects on your cards.
+
+<color=#E58BFF><b>PLAYING CARDS</b></color>
+<b>Face-up:</b> only into the line with the card's matching Protocol. Its middle text happens right away; its top text works while it is face-up, and its bottom text only while nothing covers it.
+<b>Face-down:</b> into any line. A face-down card is worth 2 and has no text.
+A card played onto a stack covers the one below it. Only the top card of each stack can be targeted, unless an effect says "covered" or "all".
+
+<color=#E58BFF><b>COMPILING</b></color>
+During your Compile step, if you have <b>10 or more</b> value in a line <b>and</b> more than your opponent there, you must compile it. Every card in that line, on both sides, is deleted, and your Protocol flips to its Compiled side. Compiling a line that is already compiled draws the top card of your opponent's deck instead.
+
+<color=#E58BFF><b>CONTROL</b></color>
+When you compile or refresh while holding Control, you may first rearrange one player's Protocols. Control then returns to neutral.
+
+<color=#E58BFF><b>CARD TEXT</b></color>
+Card text is an effect, not a cost: do as much as you can. New effects interrupt the one resolving and finish first. If a card is covered, flipped, or removed mid-effect, the rest of its text stops.
+Discarded and deleted cards go face-up to their owner's trash. When your deck runs out, shuffle your trash to make a new one.
+
+<color=#A397BA>Full rules: docs/official/rules.md</color>

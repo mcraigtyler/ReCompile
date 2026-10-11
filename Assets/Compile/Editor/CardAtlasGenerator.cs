@@ -56,7 +56,9 @@ namespace Compile.Editor
                 .SelectMany(f => AssetDatabase.FindAssets("t:Sprite", new[] { f })
                     .Select(AssetDatabase.GUIDToAssetPath)
                     .Where(p => p.StartsWith("Assets/"))
-                    .Where(p => recursive || Path.GetDirectoryName(p).Replace('\\', '/') == f))
+                    .Where(p => recursive || Path.GetDirectoryName(p).Replace('\\', '/') == f)
+                    // 9-sliced panel sprites stay unpacked: the atlas has mipmaps, which bleed at slice borders.
+                    .Where(p => !Path.GetFileName(p).StartsWith("chamfer_")))
                 .Distinct()
                 .Select(AssetDatabase.LoadAssetAtPath<Sprite>)
                 .Where(s => s != null)
@@ -97,7 +99,7 @@ namespace Compile.Editor
 
             var texture = importer.textureSettings;
             texture.filterMode = FilterMode.Bilinear;
-            texture.generateMipMaps = false;
+            texture.generateMipMaps = true; // viewed in perspective on the table
             importer.textureSettings = texture;
 
             // Cards are drawn by uGUI Images, so keep rectangular packing and no rotation.
@@ -110,6 +112,9 @@ namespace Compile.Editor
 
             var platform = importer.GetPlatformSettings("DefaultTexturePlatform");
             platform.maxTextureSize = 2048;
+            platform.textureCompression = TextureImporterCompression.Compressed;
+            platform.crunchedCompression = true;    // keeps the WebGL download small
+            platform.compressionQuality = 60;
             importer.SetPlatformSettings(platform);
 
             importer.includeInBuild = true;

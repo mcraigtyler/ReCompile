@@ -3,7 +3,11 @@
     "rootNamespace": "Compile.Editor",
     "references": [
         "Compile.Engine",
-        "Compile.Engine.Cards"
+        "Compile.Engine.Cards",
+        "Compile.Client",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.TextMeshPro.Editor"
     ],
     "includePlatforms": [
         "Editor"
