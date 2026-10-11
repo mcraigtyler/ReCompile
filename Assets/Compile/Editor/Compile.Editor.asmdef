@@ -1,0 +1,19 @@
+{
+    "name": "Compile.Editor",
+    "rootNamespace": "Compile.Editor",
+    "references": [
+        "Compile.Engine",
+        "Compile.Engine.Cards"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

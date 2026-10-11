@@ -163,6 +163,7 @@ Compile.Engine.Cards    (card definitions, depends on Engine)
 Compile.Engine.Tests    (EditMode tests)
 Compile.Net             (NGO, UGS)
 Compile.Client          (presentation, UI)
+Compile.Editor          (editor-only tools: art import settings, atlas generation)
 ```
 
 ## 5. Rules Engine
@@ -252,9 +253,11 @@ Card text comes from the community card database at [chuckplayer/compile](https:
 
 - All 15 Protocols we have art for are in `cards.json`, and their values match the art filenames exactly. The Codex errata (Death 1, Fire 0, Life 0, Metal 1, Spirit 1, Hate 2) are already applied.
 - The files cover more than we need: `cards.json` also has 15 Protocols we don't have art for, and `protocols.json` lists 15 more beyond those. Import only Protocols that have an art folder.
-- `CardDefinition`: `Id`, `Protocol`, `Value`, `Set`, `Top`, `Middle`, `Bottom` (emphasis + text), `Keywords`, `ArtPath`, effect class.
-- Card ids combine Protocol and value (e.g. `Gravity_6` ↔ `resources/img/cards/Gravity/6.gif`). Values per Protocol are not always 0–5: Gravity has no 3, Metal has no 4, Love runs 1–6.
-- An editor import step reads `cards.json` into ScriptableObjects (or a runtime JSON asset) so tooltips and effect code share one source of text. The text is for display and reference only; behavior lives in each card's effect class.
+- **In the project:** `Assets/Compile/Data/cards.json` and `protocols.json` hold the 15 Protocols that have art (90 cards). They're loaded as **runtime JSON** (not ScriptableObjects) so the engine reads the same file the docs use, with no Unity dependency.
+- `CardDatabase.Parse(cardsJson, protocolsJson)` in `Compile.Engine.Cards` builds the lookup. It parses with Newtonsoft's `JToken` API rather than reflection, so IL2CPP stripping in WebGL builds can't break it.
+- `CardDefinition`: `Id`, `Protocol`, `Value`, `Set`, `Top`, `Middle`, `Bottom` (emphasis + text), `Keywords`. `ProtocolDefinition`: `Name`, `Tagline`, `Focus`, `Set`. Effect classes come later and are looked up by card id.
+- Card ids combine Protocol and value (e.g. `Gravity_6` ↔ `Assets/Compile/Art/Cards/Gravity/6.gif`). Values per Protocol are not always 0–5: Gravity has no 3, Metal has no 4, Love runs 1–6.
+- The text is for display and reference only; behavior lives in each card's effect class.
 - `cards.json` is community-maintained. If it disagrees with a newer Codex ruling, the Codex wins. Record any local fixes so they can be sent upstream.
 
 ## 6. Networking
@@ -305,14 +308,16 @@ The mitigation path is already built into the architecture: because the engine h
 
 ## 7. Art and Assets
 
-- **GIF conversion:** Unity doesn't import `.gif` as textures. Convert all card art in `resources/img/cards` to PNG during import (one-time script), keeping folder and file names.
+- **Location:** `resources/img` is the source art. The game's copy is in `Assets/Compile/Art/` (`Cards/<Protocol>/`, `Cards/Control/`, `Board/`, `UI/`), with the same file names.
+- **GIF files:** Unity imports single-frame GIFs as textures directly, so the art is used as-is with no PNG conversion.
+- **Import settings:** `ArtImportSettings` (an editor `AssetPostprocessor`) makes every image under `Assets/Compile/Art/` a sprite on first import: no mipmaps, clamp, bilinear, compressed, max size 1024 (2048 for the board).
 - **Card size:** source art is 372 × 521. Use it at native size for zoomed views and downscale for the board.
 - **Protocol cards:** `A` = Loading side, `B` = Compiled side. They sit sideways at the center end of each lane (rotated 90°).
 - **Card back:** `Cardback.gif` for face-down cards, hands, and decks.
 - **Control:** `Control/A.gif` and `Control/B.gif` (check which side means what; the rulesheet doesn't say).
 - **Unknown card:** `404.jpg` as a fallback if an image is missing.
 - **Board:** `background_1.jpg` (1398 × 1500) as each player's mat. Lane positions are measured in `board-setup.html`.
-- **Atlases:** pack each Protocol's 8 images into a Sprite Atlas to cut draw calls and download size.
+- **Atlases:** `Assets/Compile/Art/Atlases/` has one Sprite Atlas (V2) per Protocol (its 6 cards plus both Protocol sides) and a `Shared` atlas (card back, Control, `404`, UI icons). The board image is too large to pack. `CardAtlasGenerator` rebuilds them before every build, so new art is picked up automatically.
 
 ## 8. WebGL Build
 

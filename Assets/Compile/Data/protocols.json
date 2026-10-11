@@ -1,0 +1,92 @@
+[
+  {
+    "protocol": "Apathy",
+    "top": "Uncaring, unfeeling",
+    "bottom": "Flip Face-Down",
+    "set": "AX01"
+  },
+  {
+    "protocol": "Hate",
+    "top": "Ultimate disdain",
+    "bottom": "Delete theirs and yours",
+    "set": "AX01"
+  },
+  {
+    "protocol": "Love",
+    "top": "Giving is the true gift",
+    "bottom": "Draw, Gift, Exchange",
+    "set": "AX01"
+  },
+  {
+    "protocol": "Darkness",
+    "top": "An absence of light",
+    "bottom": "Draw, Shift, Manipulate",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Death",
+    "top": "Nothing shall survive",
+    "bottom": "Delete, Draw",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Fire",
+    "top": "Burn at both ends",
+    "bottom": "Discard for effect",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Gravity",
+    "top": "Draw ever inward",
+    "bottom": "Shift, Flip, Draw",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Life",
+    "top": "Bring about new growth",
+    "bottom": "Flip, Top Deck Play, Draw",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Light",
+    "top": "Burn away the dark",
+    "bottom": "Draw, Flip, Shift",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Metal",
+    "top": "Hardened against all",
+    "bottom": "Prevent, Draw, Flip",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Plague",
+    "top": "Slow death from within",
+    "bottom": "Force Discard, Flip",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Psychic",
+    "top": "Know your foe's mind",
+    "bottom": "Draw, Manipulate, Shift",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Speed",
+    "top": "Quicken with every step",
+    "bottom": "Draw, Play, Shift",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Spirit",
+    "top": "True strength from within",
+    "bottom": "Flip, Shift, Draw",
+    "set": "MN01"
+  },
+  {
+    "protocol": "Water",
+    "top": "Wash away and renew",
+    "bottom": "Return, Draw, Flip",
+    "set": "MN01"
+  }
+]
