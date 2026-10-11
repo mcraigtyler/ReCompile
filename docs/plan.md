@@ -110,7 +110,7 @@ Decided at the start of this phase: **uGUI**, and a **tabletop presentation** (s
 - [x] **Host:** 6-character room code with Copy (browser clipboard in WebGL), "Waiting for an opponent…", Cancel
 - [x] **Join:** code field (uppercase, letters and numbers only), Join button, error messages. Codes starting with X or F trigger "Room not found" and "Room is full"
 - [x] **Lobby:** both display names with host/guest and ready state, ready toggle, first-player choice (Random / Host / Guest, host only), Start when both are ready, Leave
-- [x] **Draft:** played on the mat. 15 Protocols spread over the local lanes, status shows the pick number and whose turn, the next slot pulses, picks glide into their slot, hover shows the tagline and focus. The stub opponent picks at random
+- [x] **Draft:** played on the mat. 15 Protocols spread over the local lanes, status shows the pick number and whose turn, the next slot pulses, picks glide into their slot, resting the pointer on one shows its tagline and focus in the docked card reader beside the pool. The stub opponent picks at random
 - [x] **Board preview:** tilted view over the local half with the drafted Protocols, plus debug actions (simulate win or loss, opponent leaves, leave game)
 - [x] **Result:** Victory/Defeat panel on the local lanes, the winner's Protocols flip to Compiled, Rematch (loser drafts first) and Leave
 - [x] **Rules:** scrollable condensed rules (`rules-summary.txt`) reachable from Title
@@ -119,7 +119,7 @@ Decided at the start of this phase: **uGUI**, and a **tabletop presentation** (s
 
 - [x] Every screen works in wide (landscape) and tall (portrait) aspect ratios (checked with captures at 1600 × 900 and 820 × 1180)
 - [x] Touch-friendly sizes: controls are 96 canvas px tall, about 44 pt or larger at the menu framing
-- [x] Hover-only detail: fixed in Phase 2. Long-press (touch) or hover (desktop) on a draft card shows the Protocol in the card zoom
+- [x] Hover-only detail: fixed in Phase 2. Long-press (touch) on a draft card opens the large zoom; resting the pointer (desktop) shows it in the card reader
 
 **Tests:** 24 EditMode tests pass (card data, draft order, fake session service, room code validation).
 
@@ -167,7 +167,8 @@ The board reads a `PlayerView` (the view-model type the engine and network will 
 - [x] Face-up / face-down toggle for the selected card; right-click flips it as a shortcut; a FACE-DOWN badge shows on the card
 - [x] Lane highlighting: legal lanes pulse, illegal ones darken
 - [x] Refresh button (enabled only below 5 cards)
-- [x] Card zoom: hover (desktop) or long-press (touch) for a large view with the card's text; Zoom button or long-press pins it; works on covered cards, Protocols, and the draft
+- [x] Card zoom: long-press or the Zoom button opens a large pinned view with the card's text; works on covered cards, Protocols, the trash, and the draft
+- [x] Card reader (also used in the draft): a docked panel with the card's text that keeps the lanes clear (left column between the summaries on wide screens, under the top strip on tall ones). It shows the selected hand card (with the side it will be played on), or a hovered card once the pointer rests on it for 0.5 s. Nothing new shows while a pointer is pressed or a card is dragged, and a press clears a hovered view. Long cards drop the thumbnail, then grow over your summary. Tapping the panel hides it until the selection changes
 - [x] Choice prompt (debug "Choose a card to flip"): uncovered cards glow, others stop responding, Skip when optional
 - [x] Rearrange (debug): tap two Protocols to swap, Confirm only once the order differs, Don't rearrange puts them back; cards in the lines stay put
 

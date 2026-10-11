@@ -3,6 +3,7 @@ using System.Linq;
 using Compile.Client.App;
 using Compile.Client.Cards;
 using Compile.Client.Table;
+using Compile.Client.UI;
 using Compile.Engine;
 using UnityEngine;
 
@@ -30,6 +31,7 @@ namespace Compile.Client.Screens
         float _time;
         float _opponentPicksAt = -1f;
         float _finishesAt = -1f;
+        CardReader _reader;
 
         int LocalSeat => App.Match.Start.LocalSeat;
         bool LocalTurn => !_draft.IsComplete && _draft.CurrentSeat == LocalSeat;
@@ -40,6 +42,11 @@ namespace Compile.Client.Screens
             _random = new System.Random(App.Match.Start.Seed);
             var names = App.Cards.Protocols.Select(p => p.Name).OrderBy(n => n).ToList();
             _draft = new Draft(names, App.Match.Start.FirstSeat);
+
+            // Hovered Protocols show in a docked panel beside the pool, not over it.
+            _reader = CardReader.Create(App.Hud.Root);
+            _reader.Rect.SetAsFirstSibling();
+            LayoutReader();
 
             DealPool(names);
             App.CameraRig.Show(new CameraShot(ViewArea, Pitch, margin: 0.04f));
@@ -52,6 +59,8 @@ namespace Compile.Client.Screens
             foreach (var card in _pool.Values)
                 Object.Destroy(card.gameObject);
             _pool.Clear();
+            Object.Destroy(_reader.gameObject);
+            App.Hud.Zoom.Hide();
             App.Mat.HighlightSlots(true, -1);
         }
 
@@ -82,6 +91,7 @@ namespace Compile.Client.Screens
         public override void Tick(float deltaTime)
         {
             _time += deltaTime;
+            LayoutReader();
 
             if (_opponentPicksAt >= 0f && _time >= _opponentPicksAt)
             {
@@ -104,20 +114,38 @@ namespace Compile.Client.Screens
                 Pick(card.Protocol);
         }
 
-        // Hover (desktop) shows the Protocol while the pointer is over it; long-press (touch) pins it.
+        // Resting the pointer on a Protocol (desktop) shows it in the docked reader; long-press (touch)
+        // opens the large zoom until it's closed.
         void OnCardHovered(CardView card, bool hovered)
         {
             if (hovered)
-                Zoom(card, pinned: false);
+                _reader.Hover(card, App.Art.ProtocolSide(card.Protocol, compiled: false),
+                    CardDescription.ForProtocol(App.Cards.GetProtocol(card.Protocol), compiled: false));
             else
-                App.Hud.Zoom.Release(card);
+                _reader.Unhover(card);
         }
 
-        void OnCardLongPressed(CardView card) => Zoom(card, pinned: true);
-
-        void Zoom(CardView card, bool pinned) =>
+        void OnCardLongPressed(CardView card) =>
             App.Hud.Zoom.ShowProtocol(card, App.Art.ProtocolSide(card.Protocol, compiled: false), App.Cards.GetProtocol(card.Protocol),
-                compiled: false, pinned);
+                compiled: false, pinned: true);
+
+        // Wide screens: on the desk at the left of the mat. Tall screens: under the status bar, over the
+        // Protocol rows (the pool stays clear).
+        void LayoutReader()
+        {
+            var root = App.Hud.Root.rect;
+            if (Screen.width >= Screen.height)
+            {
+                _reader.SetLayout(true, 460f, root.height - 120f, root.height - 120f);
+                _reader.Dock(new Vector2(0f, 0.5f), new Vector2(28f, 0f));
+            }
+            else
+            {
+                var top = 32f + App.Hud.StatusBox.rect.height + 12f;
+                _reader.SetLayout(false, root.width - 48f, 420f, 420f);
+                _reader.Dock(new Vector2(0.5f, 1f), new Vector2(0f, -top));
+            }
+        }
 
         void Pick(string protocol)
         {
@@ -130,6 +158,7 @@ namespace Compile.Client.Screens
             card.Hovered -= OnCardHovered;
             card.LongPressed -= OnCardLongPressed;
             App.Mat.PlaceProtocol(card, App.Match.IsLocal(seat), slot);
+            _reader.Unhover(card);
             App.Hud.Zoom.Release(card);
 
             UpdateTurn();

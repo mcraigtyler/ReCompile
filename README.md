@@ -56,6 +56,8 @@ python -m http.server 8000 --directory Builds/WebGL
 
 Then open **http://localhost:8000**. Stop the server with Ctrl+C.
 
+The server only serves the files already in `Builds/WebGL/`, so rebuild after changing code. The build files keep the same names, so reload with **Ctrl+Shift+R** (or disable the cache in the browser's dev tools) to make sure the browser isn't running the previous build.
+
 Any static server works. The build uses Brotli compression with a decompression fallback, so it still loads from servers that don't send `Content-Encoding` headers (like Python's), just a little more slowly the first time.
 
 ### Play it on a tablet

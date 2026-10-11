@@ -24,6 +24,7 @@ namespace Compile.Client.Board
         RectTransform _opponentBox;
         TextMeshProUGUI _opponentText;
         RectTransform _localBox;
+        CanvasGroup _localBoxGroup;
         TextMeshProUGUI _localText;
         RectTransform _actions;
         ButtonSkin _faceUp, _faceDown, _refresh, _zoom;
@@ -52,6 +53,7 @@ namespace Compile.Client.Board
         public bool Wide => _wide;
 
         public HandView Hand { get; private set; }
+        public CardReader Reader { get; private set; }
 
         public event Action<bool> OrientationChosen;   // true = face-up
         public event Action RefreshPressed;
@@ -89,6 +91,7 @@ namespace Compile.Client.Board
             Ui.Button(_opponentBox, "Opponent's trash", ButtonStyle.Quiet, () => TrashPressed?.Invoke(false));
 
             _localBox = Box("Local", 420f);
+            _localBoxGroup = _localBox.gameObject.AddComponent<CanvasGroup>();
             _localText = Ui.Text(_localBox, "", TextStyle.Body);
             _localText.fontSize = 30f;
             Ui.Button(_localBox, "Your trash", ButtonStyle.Quiet, () => TrashPressed?.Invoke(true));
@@ -121,7 +124,7 @@ namespace Compile.Client.Board
             _debugMenu.gameObject.SetActive(false);
 
             // The current question and its buttons, placed where it doesn't hide the cards being chosen:
-            // middle-left on wide screens, under the phase bar on tall ones.
+            // at the left between the player summaries on wide screens, under the top strip on tall ones.
             _prompt = Ui.Rect("Prompt", _root);
             _prompt.sizeDelta = new Vector2(440f, 0f);
             Ui.Backdrop(_prompt, Palette.PanelFill, Palette.Cyan, shadow: false);
@@ -131,6 +134,9 @@ namespace Compile.Client.Board
             _promptText.fontSize = 36f;
             _promptButtons = Ui.Row(_prompt, 12f, "PromptButtons");
             _prompt.gameObject.SetActive(false);
+
+            // Card text for the hovered or selected card, docked under the prompt.
+            Reader = CardReader.Create(_root);
 
             BuildTallStrips();
 
@@ -398,7 +404,6 @@ namespace Compile.Client.Board
                 Place(_debugMenu, new Vector2(1f, 1f), new Vector2(-340f, -24f), 360f);
                 Place(_localBox, new Vector2(0f, 0f), new Vector2(28f, 28f), 420f);
                 Place(_actions, new Vector2(1f, 0f), new Vector2(-28f, 28f), 340f);
-                Place(_prompt, new Vector2(0f, 0.5f), new Vector2(28f, 40f), 440f);
                 Hand.SetWidth(1040f);
                 _logOpen = true;
             }
@@ -409,11 +414,52 @@ namespace Compile.Client.Board
                 Place(_tallBottom, new Vector2(0.5f, 0f), new Vector2(0f, 168f), width - 48f);
                 Place(_log, new Vector2(1f, 1f), new Vector2(-24f, -200f), Mathf.Min(620f, width - 48f));
                 Place(_debugMenu, new Vector2(1f, 1f), new Vector2(-24f, -200f), 360f);
-                Place(_prompt, new Vector2(0.5f, 1f), new Vector2(0f, -200f), Mathf.Min(760f, width - 48f));
                 Hand.SetWidth(width - 48f);
                 _logOpen = false;
             }
             ApplyLogVisibility();
+        }
+
+        // The prompt and the card reader share a column that keeps clear of the lanes: at the left between
+        // the player summaries on wide screens, and under the top strip (over the far end of the
+        // opponent's lanes) on tall ones. Placed every frame because the boxes around them change height.
+        void LateUpdate()
+        {
+            var rootHeight = _root.rect.height;
+            Vector2 anchor;
+            float x, top, bottom, stretchBottom, width;
+            if (_wide)
+            {
+                anchor = new Vector2(0f, 1f);
+                x = 28f;
+                top = 24f + _opponentBox.rect.height + 16f;
+                bottom = 28f + _localBox.rect.height + 16f;
+                stretchBottom = 28f;    // a long card may cover your summary while it's shown
+                width = 440f;
+            }
+            else
+            {
+                anchor = new Vector2(0.5f, 1f);
+                x = 0f;
+                top = 104f + _tallTop.rect.height + 12f;
+                bottom = rootHeight * 0.5f;
+                stretchBottom = rootHeight * 0.4f;
+                width = _tallTop.rect.width;
+            }
+
+            Place(_prompt, anchor, new Vector2(x, -top), width);
+            if (_prompt.gameObject.activeSelf)
+                top += _prompt.rect.height + 12f;
+            Reader.SetLayout(_wide, width, Mathf.Max(240f, rootHeight - top - bottom), rootHeight - top - stretchBottom);
+            Reader.Dock(anchor, new Vector2(x, -top));
+
+            // Hide your summary while a long card's text covers it.
+            if (_wide)
+            {
+                var covered = top + Reader.Height > rootHeight - bottom + 1f;
+                _localBoxGroup.alpha = covered ? 0f : 1f;
+                _localBoxGroup.blocksRaycasts = !covered;
+            }
         }
 
         static void Place(RectTransform rt, Vector2 anchor, Vector2 position, float width)

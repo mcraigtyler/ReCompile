@@ -127,7 +127,7 @@ Every action works with a mouse and with touch.
 | Choose orientation | On-screen **Face-up / Face-down** toggle on the selected card. Right-click flips it as a shortcut. | The same on-screen toggle. |
 | Show legal moves | Legal lines highlight and illegal ones dim as soon as a card is selected. | Same. |
 | Refresh | Button, enabled only when legal (fewer than 5 cards in hand). | Same. |
-| Read a card | Hover shows a large view; click the magnifier for a pinned view. Covered cards can be inspected too. | Long-press shows the large view until you lift your finger; the magnifier pins it. |
+| Read a card | Resting the pointer on a card (0.5 s) shows its text in a docked reader panel that keeps the lanes clear; the selected hand card stays there. Long-press or the Zoom button opens a large pinned view. Covered cards can be inspected too. | Tapping a hand card selects it and shows its text in the reader. Long-press any card for the large pinned view. |
 | Answer a choice | The engine asks for choices ("Choose 1 card to flip", "Discard 1 card", "You may shift…"). Valid targets glow. Optional choices get a **Skip** button. | Same, with tap. |
 | Rearrange Protocols (Control) | Drag Protocols into a new order on either side, then **Confirm** or **Don't rearrange**. Confirm is disabled until the order is different. | Drag, or tap two Protocols to swap them. |
 | Clear Cache | Select cards to discard until you hold 5. | Same, with tap. |

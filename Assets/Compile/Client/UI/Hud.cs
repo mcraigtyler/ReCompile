@@ -24,6 +24,7 @@ namespace Compile.Client.UI
 
         public RectTransform Root { get; private set; }
         public CardZoom Zoom { get; private set; }
+        public RectTransform StatusBox => _status;
 
         public void Init()
         {

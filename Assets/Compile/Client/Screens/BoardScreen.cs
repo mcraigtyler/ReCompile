@@ -53,10 +53,10 @@ namespace Compile.Client.Screens
             _table.transform.SetParent(App.Table, false);
             _table.Init(App.Mat, App.Art, App.Theme);
             _table.CardClicked += OnTableCardClicked;
-            _table.CardHovered += (card, on) => ZoomTableCard(card, on, pinned: false);
-            _table.CardLongPressed += card => ZoomTableCard(card, true, pinned: true);
-            _table.ProtocolHovered += (card, on) => ZoomProtocol(card, on, pinned: false);
-            _table.ProtocolLongPressed += card => ZoomProtocol(card, true, pinned: true);
+            _table.CardHovered += OnTableCardHovered;
+            _table.CardLongPressed += ZoomTableCard;
+            _table.ProtocolHovered += OnProtocolHovered;
+            _table.ProtocolLongPressed += ZoomProtocol;
             _table.ProtocolClicked += OnProtocolClicked;
             _table.LaneClicked += PlaySelected;
             _table.LaneDropped += PlaySelected;
@@ -65,12 +65,17 @@ namespace Compile.Client.Screens
             _hud = BoardHud.Create(App.Hud.Root, App.Art, App.Theme);
             _hud.Hand.CardTapped += OnHandCardTapped;
             _hud.Hand.CardRightClicked += OnHandCardRightClicked;
-            _hud.Hand.CardHovered += (id, on) => ZoomHandCard(id, on, pinned: false);
-            _hud.Hand.CardLongPressed += id => ZoomHandCard(id, true, pinned: true);
-            _hud.Hand.DragStarted += id => Select(id, DefaultOrientation(id));
+            _hud.Hand.CardHovered += OnHandCardHovered;
+            _hud.Hand.CardLongPressed += ZoomHandCard;
+            _hud.Hand.DragStarted += id =>
+            {
+                _hud.Reader.Dragging = true;
+                Select(id, DefaultOrientation(id));
+            };
+            _hud.Hand.DragEnded += id => _hud.Reader.Dragging = false;
             _hud.OrientationChosen += SetOrientation;
             _hud.RefreshPressed += Refresh;
-            _hud.ZoomPressed += () => ZoomHandCard(_selected, true, pinned: true);
+            _hud.ZoomPressed += () => ZoomHandCard(_selected);
             _hud.TrashPressed += ShowTrash;
             AddDebugActions();
 
@@ -124,6 +129,7 @@ namespace Compile.Client.Screens
                 _selected = -1;
             _hud.Hand.Select(_selected, _faceUp);
             UpdateTargets();
+            UpdateReader();
             UpdatePrompt();
         }
 
@@ -193,6 +199,7 @@ namespace Compile.Client.Screens
             _faceUp = faceUp;
             _hud.Hand.Select(id, faceUp);
             UpdateTargets();
+            UpdateReader();
         }
 
         void SetOrientation(bool faceUp)
@@ -208,6 +215,7 @@ namespace Compile.Client.Screens
             _faceUp = faceUp;
             _hud.Hand.SetSelectedFaceUp(faceUp);
             UpdateTargets();
+            UpdateReader();
         }
 
         void PlaySelected(int line)
@@ -261,50 +269,92 @@ namespace Compile.Client.Screens
             Schedule(PhaseStep, () => _sandbox.SetPhase(TurnPhase.Action, true));
         }
 
-        // ---------- Zoom ----------
+        // ---------- Card text ----------
+        // Hovering (after a short rest) or selecting a card shows its text in the docked reader; a long
+        // press or the Zoom button opens the large zoom, which stays until it's closed.
 
-        void ZoomHandCard(int id, bool on, bool pinned)
+        static object HandSubject(int id) => "hand:" + id;
+
+        (Sprite art, CardDescription text) Describe(CardInfo info, bool faceUp)
+        {
+            if (info.IsHidden)
+                return (App.Theme.cardBack, CardDescription.ForCard(null, faceUp: false, hiddenFromViewer: true));
+            return (App.Art.Card(info.Protocol, info.PrintedValue),
+                CardDescription.ForCard(App.Cards.GetCard(info.CardId), faceUp, hiddenFromViewer: false));
+        }
+
+        // The selected hand card stays in the reader, showing the side it will be played on.
+        void UpdateReader()
+        {
+            var info = _selected >= 0 ? _hud.Hand.InfoFor(_selected) : null;
+            if (info == null)
+            {
+                _hud.Reader.ClearResting();
+                return;
+            }
+            var (art, text) = Describe(info, _faceUp);
+            _hud.Reader.SetResting(HandSubject(_selected), art, text);
+        }
+
+        void OnHandCardHovered(int id, bool on)
+        {
+            var info = _hud.Hand.InfoFor(id);
+            if (!on || info == null)
+            {
+                _hud.Reader.Unhover(HandSubject(id));
+                return;
+            }
+            var (art, text) = Describe(info, id != _selected || _faceUp);
+            _hud.Reader.Hover(HandSubject(id), art, text);
+        }
+
+        void OnTableCardHovered(CardView card, bool on)
+        {
+            var info = _table.InfoFor(card);
+            if (!on || info == null)
+            {
+                _hud.Reader.Unhover(card);
+                return;
+            }
+            var (art, text) = Describe(info, info.FaceUp);
+            _hud.Reader.Hover(card, art, text);
+        }
+
+        void OnProtocolHovered(CardView card, bool on)
+        {
+            if (!on)
+            {
+                _hud.Reader.Unhover(card);
+                return;
+            }
+            _hud.Reader.Hover(card, App.Art.ProtocolSide(card.Protocol, card.Compiled),
+                CardDescription.ForProtocol(App.Cards.GetProtocol(card.Protocol), card.Compiled));
+        }
+
+        void ZoomHandCard(int id)
         {
             var info = _hud.Hand.InfoFor(id);
             if (info == null)
                 return;
-            var subject = (object)("hand:" + id);
-            if (!on)
-            {
-                App.Hud.Zoom.Release(subject);
-                return;
-            }
-            App.Hud.Zoom.ShowCard(subject, App.Art.Card(info.Protocol, info.PrintedValue), App.Cards.GetCard(info.CardId),
-                faceUp: true, hiddenFromViewer: false, pinned);
+            App.Hud.Zoom.ShowCard(HandSubject(id), App.Art.Card(info.Protocol, info.PrintedValue), App.Cards.GetCard(info.CardId),
+                faceUp: true, hiddenFromViewer: false, pinned: true);
         }
 
-        void ZoomTableCard(CardView card, bool on, bool pinned)
+        void ZoomTableCard(CardView card)
         {
             var info = _table.InfoFor(card);
             if (info == null)
                 return;
-            if (!on)
-            {
-                App.Hud.Zoom.Release(card);
-                return;
-            }
             if (info.IsHidden)
-                App.Hud.Zoom.ShowCard(card, App.Theme.cardBack, null, faceUp: false, hiddenFromViewer: true, pinned);
+                App.Hud.Zoom.ShowCard(card, App.Theme.cardBack, null, faceUp: false, hiddenFromViewer: true, pinned: true);
             else
                 App.Hud.Zoom.ShowCard(card, App.Art.Card(info.Protocol, info.PrintedValue), App.Cards.GetCard(info.CardId),
-                    info.FaceUp, hiddenFromViewer: false, pinned);
+                    info.FaceUp, hiddenFromViewer: false, pinned: true);
         }
 
-        void ZoomProtocol(CardView card, bool on, bool pinned)
-        {
-            if (!on)
-            {
-                App.Hud.Zoom.Release(card);
-                return;
-            }
+        void ZoomProtocol(CardView card) =>
             App.Hud.Zoom.ShowProtocol(card, App.Art.ProtocolSide(card.Protocol, card.Compiled), App.Cards.GetProtocol(card.Protocol),
-                card.Compiled, pinned);
-        }
+                card.Compiled, pinned: true);
 
         void ShowTrash(bool local)
         {

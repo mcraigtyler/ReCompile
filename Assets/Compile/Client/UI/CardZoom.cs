@@ -1,4 +1,3 @@
-using System.Text;
 using Compile.Engine.Cards;
 using TMPro;
 using UnityEngine;
@@ -53,42 +52,11 @@ namespace Compile.Client.UI
             _panel.gameObject.SetActive(false);
         }
 
-        public void ShowCard(object subject, Sprite art, CardDefinition card, bool faceUp, bool hiddenFromViewer, bool pinned)
-        {
-            var text = new StringBuilder();
-            if (hiddenFromViewer)
-            {
-                text.Append("<b>FACE-DOWN CARD</b>\n<color=#A397BA>Worth 2. Only its owner can see what it is.</color>");
-            }
-            else
-            {
-                text.Append($"<b>{card.Protocol.ToUpperInvariant()} {card.Value}</b>");
-                if (!faceUp)
-                    text.Append("\n<color=#BFF4F4>Face-down: worth 2, and none of its text is active.</color>");
-                Section(text, "Top", card.Top);
-                Section(text, "Middle", card.Middle);
-                Section(text, "Bottom", card.Bottom);
-            }
-            Show(subject, art, text.ToString(), pinned);
-        }
+        public void ShowCard(object subject, Sprite art, CardDefinition card, bool faceUp, bool hiddenFromViewer, bool pinned) =>
+            Show(subject, art, CardDescription.ForCard(card, faceUp, hiddenFromViewer).Combined, pinned);
 
-        public void ShowProtocol(object subject, Sprite art, ProtocolDefinition protocol, bool compiled, bool pinned)
-        {
-            var text = $"<b>{protocol.Name.ToUpperInvariant()} PROTOCOL</b>\n<color=#A397BA>{protocol.Tagline}</color>\n\n" +
-                       $"<color=#E58BFF>FOCUS</color>  {protocol.Focus}\n\n" +
-                       (compiled ? "<color=#7CF2C4>Compiled.</color>" : "<color=#A397BA>Loading... (not yet compiled)</color>");
-            Show(subject, art, text, pinned);
-        }
-
-        static void Section(StringBuilder text, string label, CardText command)
-        {
-            if (command.IsEmpty)
-                return;
-            text.Append($"\n\n<size=75%><color=#A397BA>{label.ToUpperInvariant()}</color></size>\n");
-            if (command.Emphasis.Length > 0)
-                text.Append($"<b><color=#E58BFF>{command.Emphasis}</color></b> ");
-            text.Append(command.Text);
-        }
+        public void ShowProtocol(object subject, Sprite art, ProtocolDefinition protocol, bool compiled, bool pinned) =>
+            Show(subject, art, CardDescription.ForProtocol(protocol, compiled).Combined, pinned);
 
         void Show(object subject, Sprite art, string text, bool pinned)
         {
