@@ -6,7 +6,8 @@
         "UnityEditor.TestRunner",
         "Compile.Engine",
         "Compile.Engine.Cards",
-        "Compile.Net"
+        "Compile.Net",
+        "Compile.Client"
     ],
     "includePlatforms": [
         "Editor"

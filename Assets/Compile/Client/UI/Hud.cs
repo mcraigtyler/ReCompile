@@ -22,6 +22,9 @@ namespace Compile.Client.UI
         RectTransform _actions;
         readonly List<GameObject> _actionButtons = new List<GameObject>();
 
+        public RectTransform Root { get; private set; }
+        public CardZoom Zoom { get; private set; }
+
         public void Init()
         {
             var canvas = gameObject.AddComponent<Canvas>();
@@ -33,6 +36,7 @@ namespace Compile.Client.UI
             scaler.matchWidthOrHeight = 0.5f;
             gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
             var root = (RectTransform)transform;
+            Root = root;
 
             _status = Box(root, "Status", new Vector2(0.5f, 1f), new Vector2(0f, -32f), 960f);
             _statusLabel = Ui.Text(_status, "", TextStyle.Label, TextAlignmentOptions.Center);
@@ -52,6 +56,9 @@ namespace Compile.Client.UI
             Ui.VStack(_actions, 16f, alignment: TextAnchor.UpperRight);
             var fitter = _actions.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
             fitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+
+            Zoom = gameObject.AddComponent<CardZoom>();
+            Zoom.Init(root);
 
             Clear();
         }
@@ -75,6 +82,7 @@ namespace Compile.Client.UI
             ClearInfo();
             ClearActions();
             _toast.gameObject.SetActive(false);
+            Zoom?.Hide();
         }
 
         public void SetStatus(string label, string text)
@@ -92,6 +100,7 @@ namespace Compile.Client.UI
             _toastText.text = message;
             _toastText.color = error ? Palette.Danger : Palette.Ink;
             _toast.gameObject.SetActive(true);
+            _toast.SetAsLastSibling();
             _toastUntil = Time.unscaledTime + ToastSeconds;
         }
 

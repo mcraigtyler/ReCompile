@@ -84,12 +84,13 @@ The game is presented as a physical table rather than flat screens:
 
 Matches the physical table:
 
-- `PlayMat.jpg` with the local player's lanes and Protocols in front, the opponent's half beyond, seen from a tilted seat over the local half.
-- Local hand fanned along the bottom edge. Opponent's hand shown as card backs (count only).
-- Deck and trash beside each mat with counts. Trashes are public: click to browse.
-- Control component on the center line, shown neutral or next to whoever holds it.
-- Each line shows both players' totals (e.g. `Fire vs Metal · 7 – 9`) and highlights when someone can Compile.
-- A phase bar mirroring the board's banner: `START › CONTROL › COMPILE › ACTION › CACHE › END`, with the current step lit.
+- `PlayMat.jpg` with the local player's lanes and Protocols in front, the opponent's half beyond, seen from a tilted seat (40°) over the local half. The framing reaches from just past the near edge of the mat to the opponent's first card in each lane.
+- **On the table:** both players' stacks cascade away from their Protocols, each covered card showing its value and top command (a stack squeezes down when long, then runs off the mat toward its owner). Lines are shared columns: the opponent's stack in a line sits in the same column, mirrored top to bottom.
+- **Line totals** sit on the center line between the Protocol rows, opponent above and local below, and turn green (you) or red (opponent) when that side can compile.
+- **Hand (screen-space):** fanned along the bottom edge; resting cards sit partly below the screen (value and top command visible) and rise when hovered or selected. The opponent's hand is a count.
+- **Deck, trash, and Control:** on wide screens they lie on the desk beside the mat (Control slides toward whoever holds it); on tall screens the HUD strips show the counts instead. Trashes are public: tap to browse.
+- A phase bar mirroring the board's banner: `START › CONTROL › COMPILE › ACTION › CACHE › END`, with the current step lit and whose turn it is.
+- The board renders from a `PlayerView` (`Compile.Engine.Views`), so the same code will draw the engine's and the network's views.
 
 ### Supported screens
 

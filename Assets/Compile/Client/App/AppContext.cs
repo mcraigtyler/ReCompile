@@ -34,6 +34,10 @@ namespace Compile.Client.App
         public MatchStart Start { get; }
         public int WinnerSeat { get; set; } = -1;
 
+        // Each player's drafted Protocols in their own left → right order, set when the draft finishes.
+        public string[] LocalProtocols { get; set; }
+        public string[] OpponentProtocols { get; set; }
+
         public MatchInfo(MatchStart start) => Start = start;
 
         public bool LocalWon => WinnerSeat == Start.LocalSeat;

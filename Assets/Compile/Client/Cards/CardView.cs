@@ -6,10 +6,13 @@ using UnityEngine.EventSystems;
 namespace Compile.Client.Cards
 {
     // A card lying on the table: a face with a drop shadow, which can glide to a new spot and flip.
-    public sealed class CardView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+    public sealed class CardView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler,
+        IPointerDownHandler, IPointerUpHandler
     {
         public static readonly Vector2 SizePx = new Vector2(372f, 521f);
         const float HoverLift = 1.1f;
+        const float LongPressSeconds = 0.45f;
+        const float LongPressSlop = 14f;
 
         RectTransform _rect;
         UnityEngine.UI.Image _face;
@@ -27,13 +30,22 @@ namespace Compile.Client.Cards
         bool _hovered;
         float _hoverAmount;
 
+        bool _pressed;
+        float _pressedAt;
+        Vector2 _pressPosition;
+        bool _longPressFired;
+
         public RectTransform Rect => _rect;
         public string Protocol { get; set; }
+        public int InstanceId { get; set; }
+        public bool Compiled { get; set; }
+        public bool HoverLifts { get; set; } = true;
         public bool Interactive { get; set; }
         public bool IsMoving => _moveT < 1f;
 
         public event Action<CardView> Clicked;
         public event Action<CardView, bool> Hovered;
+        public event Action<CardView> LongPressed;
 
         public static CardView Create(Transform parent, Sprite face, string name = "Card")
         {
@@ -48,7 +60,8 @@ namespace Compile.Client.Cards
 
             view._glow = Child(rt, "Glow", UI.Ui.Theme.chamferFrame, UI.Palette.Accent);
             view._glow.type = UnityEngine.UI.Image.Type.Sliced;
-            view._glow.rectTransform.sizeDelta = SizePx + new Vector2(28f, 28f);
+            view._glow.rectTransform.sizeDelta = SizePx + new Vector2(44f, 44f);
+            view._glow.pixelsPerUnitMultiplier = 0.25f;     // thick enough to read at table distance
             view._glow.enabled = false;
 
             view._face = Child(rt, "Face", face, Color.white);
@@ -99,10 +112,34 @@ namespace Compile.Client.Cards
 
         public void SetHighlight(bool on) => _glow.enabled = on;
 
+        public void SetHighlight(bool on, Color color)
+        {
+            _glow.color = color;
+            _glow.enabled = on;
+        }
+
+        // Swaps the face without animating, e.g. to show a card's current side when it first appears.
+        public void SetFace(Sprite face)
+        {
+            _face.sprite = _shadow.sprite = face;
+            _pendingFace = null;
+        }
+
+        public Sprite Face => _pendingFace != null ? _pendingFace : _face.sprite;
+
+        // Dims the face, e.g. for covered cards a player can't target.
+        public void SetTint(Color color) => _face.color = color;
+
         void Update()
         {
             var dt = Time.unscaledDeltaTime;
-            _hoverAmount = Mathf.MoveTowards(_hoverAmount, _hovered && Interactive ? 1f : 0f, dt * 8f);
+            _hoverAmount = Mathf.MoveTowards(_hoverAmount, _hovered && Interactive && HoverLifts ? 1f : 0f, dt * 8f);
+
+            if (_pressed && !_longPressFired && Time.unscaledTime - _pressedAt >= LongPressSeconds)
+            {
+                _longPressFired = true;
+                LongPressed?.Invoke(this);
+            }
 
             Vector2 pos = _toPos;
             float rot = _toRot, scale = _toScale;
@@ -157,8 +194,29 @@ namespace Compile.Client.Cards
 
         public void OnPointerClick(PointerEventData eventData)
         {
+            // A long press shows the zoom; it isn't also a click.
+            if (_longPressFired || eventData.button != PointerEventData.InputButton.Left)
+                return;
             if (Interactive)
                 Clicked?.Invoke(this);
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            _pressed = true;
+            _longPressFired = false;
+            _pressedAt = Time.unscaledTime;
+            _pressPosition = eventData.position;
+        }
+
+        public void OnPointerUp(PointerEventData eventData) => _pressed = false;
+
+        void LateUpdate()
+        {
+            // Moving the pointer cancels a pending long press (it's a drag or scroll instead).
+            if (_pressed && !_longPressFired && UnityEngine.InputSystem.Pointer.current != null &&
+                Vector2.Distance(UnityEngine.InputSystem.Pointer.current.position.ReadValue(), _pressPosition) > LongPressSlop)
+                _pressed = false;
         }
     }
 }

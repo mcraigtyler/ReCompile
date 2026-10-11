@@ -72,6 +72,7 @@ namespace Compile.Client.Screens
                 card.Protocol = names[i];
                 card.Clicked += OnCardClicked;
                 card.Hovered += OnCardHovered;
+                card.LongPressed += OnCardLongPressed;
                 card.Place(deckPosition, -90f, PoolScale);
                 card.MoveTo(target, -90f, PoolScale, 0.45f + i * 0.03f);
                 _pool[names[i]] = card;
@@ -91,7 +92,9 @@ namespace Compile.Client.Screens
             if (_finishesAt >= 0f && _time >= _finishesAt)
             {
                 _finishesAt = -1f;
-                App.Nav.Go(new BoardPreviewScreen());
+                App.Match.LocalProtocols = _draft.PicksFor(LocalSeat).ToArray();
+                App.Match.OpponentProtocols = _draft.PicksFor(1 - LocalSeat).ToArray();
+                App.Nav.Go(new BoardScreen());
             }
         }
 
@@ -101,18 +104,20 @@ namespace Compile.Client.Screens
                 Pick(card.Protocol);
         }
 
+        // Hover (desktop) shows the Protocol while the pointer is over it; long-press (touch) pins it.
         void OnCardHovered(CardView card, bool hovered)
         {
-            if (!hovered)
-            {
-                App.Hud.ClearInfo();
-                return;
-            }
-
-            var protocol = App.Cards.GetProtocol(card.Protocol);
-            App.Hud.SetInfo($"<b>{protocol.Name.ToUpperInvariant()}</b>  <color=#A397BA>{protocol.Tagline}</color>\n" +
-                            $"<size=80%><color=#BFF4F4>{protocol.Focus}</color></size>");
+            if (hovered)
+                Zoom(card, pinned: false);
+            else
+                App.Hud.Zoom.Release(card);
         }
+
+        void OnCardLongPressed(CardView card) => Zoom(card, pinned: true);
+
+        void Zoom(CardView card, bool pinned) =>
+            App.Hud.Zoom.ShowProtocol(card, App.Art.ProtocolSide(card.Protocol, compiled: false), App.Cards.GetProtocol(card.Protocol),
+                compiled: false, pinned);
 
         void Pick(string protocol)
         {
@@ -123,8 +128,9 @@ namespace Compile.Client.Screens
             _pool.Remove(protocol);
             card.Clicked -= OnCardClicked;
             card.Hovered -= OnCardHovered;
+            card.LongPressed -= OnCardLongPressed;
             App.Mat.PlaceProtocol(card, App.Match.IsLocal(seat), slot);
-            App.Hud.ClearInfo();
+            App.Hud.Zoom.Release(card);
 
             UpdateTurn();
         }

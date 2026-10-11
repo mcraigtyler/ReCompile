@@ -72,6 +72,52 @@ namespace Compile.Client.Table
                 card.Place(position, rotation, MatLayout.ProtocolScale);
         }
 
+        // Makes the Protocol slots match a player's Protocols (in that player's own left → right order):
+        // creates missing cards, moves cards whose Protocol changed slot, and flips Compiled sides.
+        public void ShowProtocols(bool local, IReadOnlyList<string> names, IReadOnlyList<bool> compiled, bool animate = true)
+        {
+            var seat = Seat(local);
+            var existing = new List<CardView>();
+            for (var i = 0; i < 3; i++)
+                if (_protocols[seat, i] != null)
+                    existing.Add(_protocols[seat, i]);
+
+            for (var i = 0; i < 3; i++)
+            {
+                var card = existing.Find(c => c.Protocol == names[i]);
+                if (card == null)
+                {
+                    card = CardView.Create(Cards, _art.ProtocolSide(names[i], compiled[i]), names[i]);
+                    card.Protocol = names[i];
+                    card.Compiled = compiled[i];
+                    _protocols[seat, i] = card;
+                    PlaceProtocol(card, local, i, animate: false);
+                    continue;
+                }
+
+                existing.Remove(card);
+                _protocols[seat, i] = card;
+                if (card.Compiled != compiled[i])
+                {
+                    card.Compiled = compiled[i];
+                    card.Flip(_art.ProtocolSide(card.Protocol, compiled[i]));
+                }
+
+                var position = MatLayout.ProtocolSlot(local, i);
+                if (Vector2.Distance(card.Rect.anchoredPosition, position) > 1f && !card.IsMoving)
+                    card.MoveTo(position, MatLayout.ProtocolRotation(local), MatLayout.ProtocolScale, animate ? 0.45f : 0.01f);
+            }
+
+            foreach (var leftover in existing)
+                Destroy(leftover.gameObject);
+        }
+
+        public CardView ProtocolCard(bool local, int index) => _protocols[Seat(local), index];
+
+        // Temporarily shows a Protocol card in another slot (used while rearranging, before it's confirmed).
+        public void PreviewProtocolSlot(CardView card, bool local, int index) =>
+            card.MoveTo(MatLayout.ProtocolSlot(local, index), MatLayout.ProtocolRotation(local), MatLayout.ProtocolScale, 0.3f);
+
         public IReadOnlyList<string> ProtocolsFor(bool local)
         {
             var list = new List<string>();
@@ -84,8 +130,11 @@ namespace Compile.Client.Table
         public void SetCompiled(bool local, int index, bool compiled)
         {
             var card = _protocols[Seat(local), index];
-            if (card != null)
+            if (card != null && card.Compiled != compiled)
+            {
+                card.Compiled = compiled;
                 card.Flip(_art.ProtocolSide(card.Protocol, compiled));
+            }
         }
 
         public void ClearProtocols()

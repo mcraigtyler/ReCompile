@@ -119,7 +119,7 @@ Decided at the start of this phase: **uGUI**, and a **tabletop presentation** (s
 
 - [x] Every screen works in wide (landscape) and tall (portrait) aspect ratios (checked with captures at 1600 × 900 and 820 × 1180)
 - [x] Touch-friendly sizes: controls are 96 canvas px tall, about 44 pt or larger at the menu framing
-- [ ] Hover-only detail: the draft's Protocol details appear on hover, so touch players can't see them before picking. Add tap-to-preview with the Phase 2 card zoom
+- [x] Hover-only detail: fixed in Phase 2. Long-press (touch) or hover (desktop) on a draft card shows the Protocol in the card zoom
 
 **Tests:** 24 EditMode tests pass (card data, draft order, fake session service, room code validation).
 
@@ -135,45 +135,56 @@ Decided at the start of this phase: **uGUI**, and a **tabletop presentation** (s
 
 **Goal:** the game board looks and handles like the real thing for one player, with real card art, before any rules engine or networking exists. This settles layout, input, and card presentation early.
 
-The board reads a `PlayerView` (the same view-model type the engine and network will produce later) from a local stub that keeps just enough state to move cards around.
+The board reads a `PlayerView` (the view-model type the engine and network will produce later) from a local stand-in, `BoardSandbox`, that keeps just enough state to move cards around and runs a simulated opponent.
 
 ### Tasks
 
 **View model and stub**
 
-- [ ] View-model types: `PlayerView`, `LineView`, `StackView`, `CardView` (id, face-up/down, owner, value), `HandView`, `PileView`, `ControlState`, `PhaseView`
-- [ ] Local stub: builds a deck from the player's 3 drafted Protocols (or a fixed sample), deals 5 cards, and supports play, draw, discard, and flip without enforcing full rules
-- [ ] Opponent side shows their 3 Protocols, a face-down hand of 5, a deck, and an empty trash, but takes no actions
+- [x] View-model types in `Compile.Engine.Views` (no Unity references, so the engine can produce them): `PlayerView`, `LineInfo`, `StackInfo`, `CardInfo` (hidden cards carry no id), `ProtocolInfo`, `SideInfo`, `ChoiceInfo`, `LogEntry`, `TurnPhase`, `ControlHolder`. Everything is from the viewer's seat; lines run from the viewer's left.
+- [x] `BoardSandbox`: builds 18-card decks from the drafted Protocols, deals 5, plays face-up (only into a line with a matching Protocol on either side) or face-down (any line, worth 2), refreshes, reshuffles the trash, compiles, rearranges, and asks choices. 9 tests.
+- [x] Simulated opponent: its own deck and hand, plays a card each turn (face-up when it can), refreshes when empty
 
-**Board**
+**Board (on the table)**
 
-- [ ] Two mats from `background_1.jpg`; opponent mat rotated 180°; Protocols at the center end of each lane (as in `board-setup.html`)
-- [ ] Protocol cards with Loading and Compiled sides
-- [ ] Stacks: covered cards offset so each covered card's value and top command stay visible; uncovered card on top
-- [ ] Face-down cards use `Cardback` and show value 2
-- [ ] Hand fanned along the bottom edge; opponent hand as backs (count only)
-- [ ] Deck and trash piles with counts; trash browser (tap to open, scroll through cards)
-- [ ] Control component on the center line (neutral, or beside a player)
-- [ ] Line totals for both sides (e.g. `Fire vs Metal · 7 – 0`)
-- [ ] Phase bar `START › CONTROL › COMPILE › ACTION › CACHE › END`, driven by the stub
-- [ ] Event log panel (collapsible), fed by stub events
+- [x] `PlayMat.png` with both players' Protocols (Loading and Compiled sides, flipping when compiled)
+- [x] Stacks in both players' lanes: covered cards offset so their value and top command stay visible; long stacks squeeze down and then run off the mat toward the player
+- [x] Face-down cards show `Cardback` (worth 2); the opponent's face-down cards are hidden from the viewer
+- [x] Line totals on the center line between the Protocol rows (opponent above, you below); green or red when a side can compile
+- [x] Wide screens: deck, trash, and the Control component on the desk beside the mat (Control slides toward whoever holds it)
+
+**HUD**
+
+- [x] Hand fanned along the bottom edge; cards rest partly below the screen and rise when hovered or selected
+- [x] Phase bar `START › CONTROL › COMPILE › ACTION › CACHE › END` with whose turn it is
+- [x] Player summaries (hand, deck, and trash counts; Control); the opponent's hand shows as a count
+- [x] Event log (side panel on wide screens, drawer on tall)
+- [x] Trash browser (tap a trash or summary; tap a card to zoom it)
 
 **Interaction**
 
-- [ ] Play a card: drag from hand to a line, or tap the card then tap a line
-- [ ] Face-up / face-down toggle on the selected card; right-click as a shortcut
-- [ ] Legal-line highlighting for face-up plays (matching Protocol) and face-down (any line)
-- [ ] Refresh button (draws to 5 in the stub)
-- [ ] Card zoom: hover or long-press for a large view; magnifier to pin it; works on covered cards
-- [ ] Choice prompt UI ("Choose 1 card to flip", valid targets glow, Skip for optional) triggered by a debug button
-- [ ] Rearrange UI for Protocols (drag or tap-to-swap, Confirm / Don't rearrange) triggered by a debug button
+- [x] Play a card: drag from the hand onto a lane, or tap the card then tap a lane
+- [x] Face-up / face-down toggle for the selected card; right-click flips it as a shortcut; a FACE-DOWN badge shows on the card
+- [x] Lane highlighting: legal lanes pulse, illegal ones darken
+- [x] Refresh button (enabled only below 5 cards)
+- [x] Card zoom: hover (desktop) or long-press (touch) for a large view with the card's text; Zoom button or long-press pins it; works on covered cards, Protocols, and the draft
+- [x] Choice prompt (debug "Choose a card to flip"): uncovered cards glow, others stop responding, Skip when optional
+- [x] Rearrange (debug): tap two Protocols to swap, Confirm only once the order differs, Don't rearrange puts them back; cards in the lines stay put
 
 **Layouts**
 
-- [ ] **Wide** layout: piles and Control beside the mats; log in a side panel
-- [ ] **Tall** layout: mats fill the width; piles in strips above and below; log in a drawer
-- [ ] Automatic switch on resize and rotation
-- [ ] Debug menu: deal a sample board, fill a stack to 5+ cards, toggle Control holder, switch Protocols to Compiled, jump to Result
+- [x] **Wide:** corner boxes for the summaries and actions, log at the right, prompt middle-left, desk items beside the mat
+- [x] **Tall:** the mat fills the width; a thin strip under the phase bar (opponent, Debug, Log) and one above the hand (you, Face-up, Face-down, Refresh); desk items hidden
+- [x] Switches automatically on resize and rotation (checked at 1600 × 900 and 820 × 1180 in the Editor Game view)
+- [x] Debug menu: deal a sample board, fill stacks, opponent plays, cycle Control, compile a line, choose a card to flip, rearrange, simulate win or loss, opponent leaves, leave game
+
+**Tests:** 33 EditMode tests pass (9 new for the sandbox).
+
+**Not done in this phase**
+
+- [ ] Turn structure isn't enforced: the stand-in only lets you act in your Action step and plays a simple opponent turn. Start/End effects, Control checks, compiling, and Clear Cache come with the engine in Phase 3.
+- [ ] Card animations are simple glides and flips; richer animation is Phase 7.
+- [ ] Not yet tried in a desktop browser or on a real tablet.
 
 **Done when:** in the Editor and a WebGL build, one player can draft (Phase 1 screens), land on the board, and play their whole hand into lines face-up and face-down with correct highlights and totals, in both wide and tall layouts. Cards are readable via zoom at tablet window sizes.
 
