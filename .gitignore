@@ -33,3 +33,6 @@ Thumbs.db
 
 # Generated IDE solution files
 *.slnx
+
+# Unity CLI temporary build helpers
+/Assets/Editor/UnityCliTemp-*
