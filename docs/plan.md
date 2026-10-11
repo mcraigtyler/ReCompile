@@ -1,0 +1,385 @@
+# Compile Online — Implementation Plan
+
+| | |
+|---|---|
+| **Status** | Draft v0.2 (2026-10-11) |
+| **Design** | [`design.md`](design.md) |
+| **Rules** | [`official/rules.md`](official/rules.md) |
+| **Card data** | [`cards.json`](cards.json) |
+
+This plan breaks the work into phases that each end in something playable or testable. The phases follow the milestones in [design.md §10](design.md#10-milestones). Each phase lists its goal, tasks, and the checks that mark it done.
+
+## Overview
+
+```mermaid
+flowchart LR
+  P0[0 · Foundation] --> P1[1 · Setup screens]
+  P1 --> P2[2 · Board layout]
+  P0 --> P3[3 · Engine core]
+  P2 --> P4[4 · Hot-seat prototype]
+  P3 --> P4
+  P3 --> P5[5 · Main Set 1 cards]
+  P4 --> P6[6 · Online play]
+  P5 --> P6
+  P6 --> P7[7 · Polish and tablets]
+  P5 --> P8[8 · Expansion Protocols]
+  P7 --> P9[9 · Release]
+  P8 --> P9
+```
+
+| Phase | Goal | Playable result | Size |
+|---|---|---|---|
+| 0 | Foundation | Project builds for WebGL; art and card data in Unity | S |
+| 1 | Setup screens | Click through Title → Host/Join → Lobby → Draft → Result with stand-in data | M |
+| 2 | Board layout | One player's board with real cards, drag to play, wide and tall layouts | M |
+| 3 | Engine core | A full game runs in tests with text-less cards | M |
+| 4 | Hot-seat prototype | Two people play a full game on one screen in the Editor | S |
+| 5 | Main Set 1 cards | All 72 Main Set 1 cards work, with tests | L |
+| 6 | Online play | Two browsers play a full game with a room code | L |
+| 7 | Polish and tablets | Animations, sound, reconnect; verified on iPad and Android tablets | M |
+| 8 | Expansion Protocols | Apathy, Hate, and Love (18 cards) work | S |
+| 9 | Release | Public, hosted WebGL build | S |
+
+**Two tracks after Phase 0.** Phases 1–2 are presentation work (`Compile.Client`) and Phase 3 is rules work (`Compile.Engine`). They don't depend on each other and can run at the same time. They meet in Phase 4, where the board from Phase 2 is wired to the engine from Phase 3.
+
+## Working Rules
+
+These apply to every phase.
+
+- **Engine first, tests always.** Rules live in `Compile.Engine` / `Compile.Engine.Cards` with no Unity references. Every rule and card lands with EditMode tests.
+- **UI reads view data, not engine internals.** Screens and the board render from plain view-model types (e.g. `PlayerView`, `LobbyView`). In Phases 1–2 a stub fills them; later the engine and network fill them. Swapping the source shouldn't require UI rewrites.
+- **The Codex wins.** When `cards.json` or `rules.md` is unclear, follow `official/The_Compile_Codex.pdf`, and record the ruling in a test name or comment.
+- **Small commits on `main`.** Each commit compiles and passes tests. Use short-lived branches for anything that spans days.
+- **Build often.** Run a WebGL build at the end of every phase, not just at release, to catch size and platform problems early.
+- **Update the docs.** If a phase changes a decision in `design.md`, update the design in the same change.
+
+---
+
+## Phase 0 — Foundation
+
+**Goal:** everything needed to start writing game code is in place.
+
+### Done
+
+- [x] Rules summary (`official/rules.md`) with Codex clarifications
+- [x] Design document (`design.md`)
+- [x] Card text (`cards.json`) and Protocol list (`protocols.json`)
+- [x] Unity 6 project (6000.6.5f1, URP 2D) at the repo root
+- [x] Packages: Netcode for GameObjects, Multiplayer Services, Authentication, Multiplayer Play Mode, Input System, uGUI/TextMeshPro, Test Framework
+- [x] Assemblies: `Compile.Engine`, `Compile.Engine.Cards`, `Compile.Net`, `Compile.Client`, `Compile.Engine.Tests`
+- [x] WebGL build profile, Brotli compression, full-window page template; first WebGL build succeeds (13.8 MB)
+
+### Remaining
+
+- [ ] **Link Unity Cloud.** Create or link a Unity Cloud project (Project Settings → Services) so Authentication, Sessions, and Relay have a project ID. Only needed by Phase 6, but cheap to do now.
+- [ ] **Import card art.** Editor script that converts `resources/img/cards/**/*.gif` to PNG under `Assets/Compile/Art/Cards/<Protocol>/`, keeping names (`0.png`…`6.png`, `A.png`, `B.png`), plus `Cardback`, `Control`, `404`, and `background_1.jpg`.
+- [ ] **Sprite import settings.** Sprite (2D), no mipmaps, sensible max size, one Sprite Atlas per Protocol plus a shared atlas for backs, Control, and board.
+- [ ] **Card data import.** Copy `docs/cards.json` into the project (e.g. `Assets/Compile/Data/cards.json`), filtered to Protocols that have art. Decide JSON at runtime vs. ScriptableObjects (see [Decisions](#decisions-to-make)).
+- [ ] **Test run in CI shape.** Confirm `unity test . --mode EditMode` runs locally and exits cleanly with zero tests.
+- [ ] **Remove bootstrap scripts** from `Assets/Editor/ProjectBootstrap/` once no longer needed (optional).
+
+**Done when:** art shows up as sprites in the Editor, card data loads in a test, and the Unity Cloud project ID is set.
+
+---
+
+## Phase 1 — Setup Screens
+
+**Goal:** every screen before and after a game exists, looks right, and navigates correctly, using stand-in data. No networking and no rules engine.
+
+Covers the screens in [design §3](design.md#screens): Title, Host/Join, Lobby, Draft, and Result.
+
+### Tasks
+
+**Shell**
+
+- [ ] Screen manager: one Canvas, screens as prefabs, a simple navigation stack (forward, back, replace)
+- [ ] Canvas Scaler (Scale With Screen Size) with a reference resolution that suits 16:9 desktop and 4:3 tablets
+- [ ] Visual style: fonts (TextMeshPro assets), colors from the board art, button and panel styles, focus and pressed states
+- [ ] Shared components: primary/secondary buttons, text field, toast/error banner, modal dialog, loading spinner
+- [ ] Session stub: a `ISessionService` interface with a fake implementation that simulates host, join, opponent arriving, and errors after short delays
+
+**Screens**
+
+- [ ] **Title:** game logo, display name field (saved locally), Host and Join buttons, Rules link, version number
+- [ ] **Host:** shows a fake 6-character room code with Copy, "Waiting for opponent…", Cancel
+- [ ] **Join:** code field (uppercase, 6 characters, validation), Join button, error messages ("Room not found", "Room is full")
+- [ ] **Lobby:** both display names, ready toggles, first-player choice (Random / Host / Guest), Start when both are ready, Leave
+- [ ] **Draft:** all Protocol cards (Loading side) from the card data, whose turn and picks remaining (1-2-2-1), picks fill left → middle → right slots for each player. The stub opponent picks at random after a short delay
+- [ ] **Result:** winner, both players' Protocols (Compiled side), Rematch and Leave
+- [ ] **Rules:** in-game rules page (from `rules.md`, simplified) reachable from Title
+
+**Layout**
+
+- [ ] Every screen works in wide (landscape) and tall (portrait) aspect ratios
+- [ ] Touch-friendly sizes (44 pt minimum targets); nothing depends on hover
+
+**Done when:** you can click through Title → Host → Lobby → Draft → (placeholder board) → Result → Rematch → Draft in the Editor and in a WebGL build, in landscape and portrait window sizes, and the Join error states can be triggered from the stub.
+
+---
+
+## Phase 2 — Board Layout (Single Player)
+
+**Goal:** the game board looks and handles like the real thing for one player, with real card art, before any rules engine or networking exists. This settles layout, input, and card presentation early.
+
+The board reads a `PlayerView` (the same view-model type the engine and network will produce later) from a local stub that keeps just enough state to move cards around.
+
+### Tasks
+
+**View model and stub**
+
+- [ ] View-model types: `PlayerView`, `LineView`, `StackView`, `CardView` (id, face-up/down, owner, value), `HandView`, `PileView`, `ControlState`, `PhaseView`
+- [ ] Local stub: builds a deck from the player's 3 drafted Protocols (or a fixed sample), deals 5 cards, and supports play, draw, discard, and flip without enforcing full rules
+- [ ] Opponent side shows their 3 Protocols, a face-down hand of 5, a deck, and an empty trash, but takes no actions
+
+**Board**
+
+- [ ] Two mats from `background_1.jpg`; opponent mat rotated 180°; Protocols at the center end of each lane (as in `board-setup.html`)
+- [ ] Protocol cards with Loading and Compiled sides
+- [ ] Stacks: covered cards offset so each covered card's value and top command stay visible; uncovered card on top
+- [ ] Face-down cards use `Cardback` and show value 2
+- [ ] Hand fanned along the bottom edge; opponent hand as backs (count only)
+- [ ] Deck and trash piles with counts; trash browser (tap to open, scroll through cards)
+- [ ] Control component on the center line (neutral, or beside a player)
+- [ ] Line totals for both sides (e.g. `Fire vs Metal · 7 – 0`)
+- [ ] Phase bar `START › CONTROL › COMPILE › ACTION › CACHE › END`, driven by the stub
+- [ ] Event log panel (collapsible), fed by stub events
+
+**Interaction**
+
+- [ ] Play a card: drag from hand to a line, or tap the card then tap a line
+- [ ] Face-up / face-down toggle on the selected card; right-click as a shortcut
+- [ ] Legal-line highlighting for face-up plays (matching Protocol) and face-down (any line)
+- [ ] Refresh button (draws to 5 in the stub)
+- [ ] Card zoom: hover or long-press for a large view; magnifier to pin it; works on covered cards
+- [ ] Choice prompt UI ("Choose 1 card to flip", valid targets glow, Skip for optional) triggered by a debug button
+- [ ] Rearrange UI for Protocols (drag or tap-to-swap, Confirm / Don't rearrange) triggered by a debug button
+
+**Layouts**
+
+- [ ] **Wide** layout: piles and Control beside the mats; log in a side panel
+- [ ] **Tall** layout: mats fill the width; piles in strips above and below; log in a drawer
+- [ ] Automatic switch on resize and rotation
+- [ ] Debug menu: deal a sample board, fill a stack to 5+ cards, toggle Control holder, switch Protocols to Compiled, jump to Result
+
+**Done when:** in the Editor and a WebGL build, one player can draft (Phase 1 screens), land on the board, and play their whole hand into lines face-up and face-down with correct highlights and totals, in both wide and tall layouts. Cards are readable via zoom at tablet window sizes.
+
+---
+
+## Phase 3 — Engine Core
+
+**Goal:** a complete game of Compile runs inside the engine, with cards that have values but no text. Can run in parallel with Phases 1–2.
+
+### Tasks
+
+**State and setup**
+
+- [ ] `GameState`, `PlayerState`, `Line`, `Stack`, `CardInstance` per [design §5](design.md#state-model)
+- [ ] Seeded RNG; deterministic shuffle
+- [ ] Draft (1-2-2-1) with left → middle → right placement
+- [ ] Deck building (6 cards × 3 Protocols), opening hands of 5
+- [ ] Line mapping between seats (player index `i` ↔ opponent index `2 - i`)
+
+**Turn loop**
+
+- [ ] Phases: Start → Control → Compile → Action → Cache → End
+- [ ] Line value (face-down = 2), Control check (lead in ≥ 2 lines)
+- [ ] Play face-up (matching Protocol) / face-down (any line)
+- [ ] Refresh (only below 5 cards), forced Refresh at 0, skip Action when nothing is possible
+- [ ] Draw with reshuffle from trash; empty-deck top-card effects do nothing
+- [ ] Clear Cache (discard down to 5)
+- [ ] Compile: Control return + optional rearrange → simultaneous delete → flip Protocol or Recompile (draw opponent's top card, ownership change)
+- [ ] Rearrange validation (must differ from start)
+- [ ] Victory check after each Compile
+
+**Interfaces**
+
+- [ ] `Intent` types: `DraftPick`, `PlayCard`, `Refresh`, `AnswerChoice`, `Rearrange`, `Concede`
+- [ ] `IntentResult` with a list of `GameEvent`s (for animation and logging)
+- [ ] `PendingChoice` mechanism (used here for Clear Cache, Compile line choice, rearrange)
+- [ ] `PlayerView` redaction per [design §6](design.md#redaction-per-player-view), producing the same view-model types the Phase 2 board reads
+
+**Testing**
+
+- [ ] Scenario helper: build a `GameState` from a compact text description
+- [ ] Tests for every rule above, named after the rule (e.g. `Compile_DeletesBothSidesSimultaneously`)
+- [ ] Random-agent fuzzer: thousands of seeded games; assert card count conservation, legal states, games end
+- [ ] Redaction tests: opponent view never contains hidden card identities
+
+**Done when:** the fuzzer plays 10,000 games of text-less cards with no invariant failures, and every rule in `rules.md` (except card text) has a test.
+
+---
+
+## Phase 4 — Hot-Seat Prototype
+
+**Goal:** two people play a full game on one screen in the Editor, using the Phase 2 board driven by the Phase 3 engine.
+
+### Tasks
+
+- [ ] `MatchController` that owns a local engine instance and replaces the Phase 2 stub
+- [ ] Board renders the active player's `PlayerView`; "Pass to Player 2" screen between turns hides the previous hand
+- [ ] All inputs submit engine `Intent`s; illegal moves show the engine's reason
+- [ ] Engine `PendingChoice` drives the choice prompt and rearrange UI from Phase 2
+- [ ] Engine events feed the event log
+- [ ] Phase 1 Draft and Result screens use the engine instead of the stub
+- [ ] "Local game" entry on the Title screen
+
+**Done when:** two people draft and finish a game in the Editor and in a WebGL build with no engine bugs found.
+
+---
+
+## Phase 5 — Main Set 1 Card Effects
+
+**Goal:** all 12 Main Set 1 Protocols (72 cards) work exactly as the cards and Codex say.
+
+### Framework first
+
+- [ ] Card effect base class with Top / Middle / Bottom hooks per [design §5](design.md#effects-and-triggers)
+- [ ] Effect primitives: `Draw`, `Discard`, `Flip`, `Shift`, `Delete`, `Return`, `Reveal`, `PlayFrom`, `Rearrange`, `Choose`
+- [ ] Resolution stack (LIFO), interrupts, cancelling text when its card is covered, flipped, or removed
+- [ ] Committed cards; "When this card would be covered" before landing
+- [ ] Triggers: Start, End, "After you draw/delete/clear cache", "After your opponent discards", "When this card would be deleted by compiling"
+- [ ] Rule-modifier queries for persistent effects (`CanPlayFaceUpIn`, `CanCompile`, `ValueOf`, etc.)
+- [ ] "All" vs. "each" targeting; uncovered-only by default
+- [ ] Card registry mapping `cards.json` ids (`Fire_4`) to effect classes, with a test that every card in scope has one
+
+### Cards, in waves
+
+Ordered so each wave mostly reuses primitives from the waves before it. Keyword counts across the 15 Protocols in scope: discard 27, flip 24, draw 22, face-down 18, delete 15, shift 13, covered 11, play 7, return 4, reveal 4.
+
+| Wave | Protocols | Main mechanics |
+|---|---|---|
+| A | Death, Fire, Plague, Metal | Draw, discard, delete, flip, prevent |
+| B | Gravity, Water, Spirit, Speed | Shift, return, covered cards, extra plays |
+| C | Life, Light, Darkness, Psychic | Play from deck, reveal, hand manipulation, rearrange |
+
+### Definition of done (per card)
+
+- [ ] Effect class implements the text in `cards.json`
+- [ ] At least one scenario test per command (top, middle, bottom)
+- [ ] Tests for any Codex clarification on that card (Death 1, Fire 0, Life 0, Light 0, Light 3, Metal 1, Metal 6, Plague 3, Speed 2, Spirit 0, Spirit 1, Water 1)
+- [ ] Choice prompts have plain-language text ("Choose 1 card to flip")
+
+**Done when:** all 72 cards pass their tests, the fuzzer runs 10,000 games with real cards and no invariant failures, and a hot-seat game with each Protocol has been played.
+
+---
+
+## Phase 6 — Online Play
+
+**Goal:** two players in different browsers find each other with a room code and play a full game.
+
+### Tasks
+
+**Services**
+
+- [ ] Initialize Unity Services; anonymous sign-in; display name stored locally and as a player property
+- [ ] Real `ISessionService`: host creates a Session (max 2 players, Relay, WebSockets) and shows the join code; guest joins by code; errors map to the Phase 1 messages
+- [ ] Unity Transport with `UseWebSockets = true`
+
+**Match protocol**
+
+- [ ] `NetworkMatch` object: RPCs for `SubmitIntent`, `ApplyEvents`, `FullSnapshot`, `PromptChoice`, `IntentRejected`
+- [ ] Host runs the engine; both players (host included) go through the same client path
+- [ ] Per-player redacted events and snapshots; state version numbers
+- [ ] Serialization for intents, events, and views (compact, versioned)
+
+**Flow**
+
+- [ ] Phase 1 screens switched from the stub to the real session service
+- [ ] Concede
+- [ ] Guest disconnect: pause, rejoin with snapshot, 2-minute forfeit timer
+- [ ] Host disconnect: end match with a clear message
+- [ ] "Matches are hosted by the player who creates the room" notice
+
+**Testing**
+
+- [ ] Multiplayer Play Mode: host + guest in one Editor
+- [ ] Two WebGL builds in two browsers on different machines/networks
+- [ ] Redaction check on real network traffic (guest never receives host's hidden cards, and the reverse for the host's client path)
+
+**Done when:** two people on different networks play a full game in desktop browsers, including a guest reconnect, with no desyncs.
+
+---
+
+## Phase 7 — Polish and Tablets
+
+**Goal:** the game feels finished and is verified on large tablets. (The wide and tall layouts already exist from Phases 1–2; this phase is about feel and device testing.)
+
+### Tasks
+
+- [ ] Animations: play, flip, shift, delete, return, draw, compile, Control moving
+- [ ] Screen transitions
+- [ ] Sound effects (start after first interaction)
+- [ ] Touch tuning on real devices: drag dead zone, long-press timing, target sizes
+- [ ] Fullscreen button; web app manifest and icons for home-screen install
+- [ ] ASTC + DXT texture variants for tablet GPUs
+- [ ] Memory check on iPad Safari (target under 512 MB)
+
+**Done when:** a full online game is played on an iPad (Safari) and an Android tablet (Chrome), in both orientations, including a mid-game rotation.
+
+---
+
+## Phase 8 — Expansion Protocols
+
+**Goal:** Apathy, Hate, and Love (set AX01, 18 cards) work.
+
+Can start any time after Phase 5. A first look at their text shows they mostly reuse existing mechanics:
+
+| Protocol | New mechanics |
+|---|---|
+| Apathy | Line value modifier; "ignore all middle commands in this line" (a rule-modifier query) |
+| Hate | Highest/lowest value targeting; "After you delete cards" trigger |
+| Love | Give and take cards between hands (ownership change, already in the rules); opponent draws; take a random card from the opponent's hand |
+
+### Tasks
+
+- [ ] Confirm there's no separate AX01 rulesheet that changes core rules (open question in design.md)
+- [ ] Implement the 18 cards with tests, following the Phase 5 definition of done
+- [ ] Add them to the draft pool
+- [ ] Fuzzer run with all 15 Protocols
+
+**Done when:** all 18 cards pass their tests and the 15-Protocol fuzzer run is clean.
+
+---
+
+## Phase 9 — Release
+
+**Goal:** a hosted, shareable build.
+
+### Tasks
+
+- [ ] Pick a host (itch.io, Unity Play, Cloudflare Pages, or GitHub Pages) and confirm Brotli headers or the decompression fallback
+- [ ] Production build: stripping level, no development flags, size check (target under 25 MB compressed)
+- [ ] Load-time check on a typical connection
+- [ ] UGS usage check against free-tier limits
+- [ ] About/credits screen crediting Compile (Greater Than Games, Michael Yang) and the card database
+- [ ] Release notes
+
+**Done when:** a friend can open the link, host or join, and play a full game without help.
+
+---
+
+## Decisions to Make
+
+| Decision | Needed by | Options |
+|---|---|---|
+| Card data format in Unity | Phase 0 | Runtime JSON (simple, matches source) vs. ScriptableObjects (Inspector editing) |
+| UI system | Phase 1 | uGUI (installed, matches design) vs. UI Toolkit |
+| Visual style for menus | Phase 1 | Match the board art's neon/glitch look, or a plainer style |
+| First player choice | Phase 1 (UI), Phase 6 (logic) | Random coin flip vs. host chooses |
+| Stalled games | Phase 3 | Rule if both decks and trashes run out |
+| Turn timer | Phase 7 | None vs. optional chess clock |
+| Spectators | Phase 6 | Keep the redacted-view design open for a third view, or not |
+| Dedicated server | After release | When public play makes host-side hidden info unacceptable |
+| AX01 rules | Phase 8 | Confirm whether a rulesheet exists |
+
+## Risks
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Card interactions are more complex than the effect model allows | Rework in Phase 5 | Build the framework against the hardest cards early (Metal 6, Speed 2, Light 0, Spirit 1); fuzz constantly |
+| Stub view models drift from what the engine produces | UI rework in Phase 4 | Define view-model types once, in a shared place, in Phase 2; the engine's redaction produces those same types |
+| Rules ambiguity not covered by the Codex | Wrong behavior, arguments | Record each ruling in tests and a "House rulings" section in `rules.md` |
+| WebGL memory or size limits on iPad | Crashes on tablets | Build every phase; keep art in atlases; check memory in Phase 7, not at release |
+| Relay/WebSocket issues in some browsers or networks | Can't connect | Test across networks in Phase 6; clear error messages |
+| Host can read hidden information | Cheating between friends | Stated in-game; engine stays server-portable |
+| Community card data has errors | Wrong card text | Compare against card images during Phase 5; send fixes upstream |
