@@ -1,0 +1,221 @@
+<title>Compile Opening Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Layout: a tabletop. Two player mats meet at the center line (P2's mat rotated 180°),
+     each flanked by its deck + trash; hands sit at the outer edges; Control sits neutral on the center line. */
+  :root {
+    color-scheme: dark;
+    --table: #120d1c;       /* felt under the mats */
+    --panel: #1c1529;
+    --ink: #ece6f7;
+    --muted: #a397ba;
+    --accent: #e58bff;      /* pulled from the board art's magenta */
+    --line: #4a3b63;
+    --cyan: #bff4f4;        /* Control card's tint */
+    --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    --mat: min(440px, 100%);
+  }
+  html { background: var(--table); }
+  body {
+    background: var(--table);
+    color: var(--ink);
+    font: 15px/1.55 var(--f-body);
+    padding-inline: 16px;
+    padding-block: 32px 48px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+
+  header { display: grid; gap: 6px; }
+  .prompt { font: 500 12px/1 var(--f-mono); letter-spacing: .08em; color: var(--accent); text-transform: uppercase; }
+  h1 { font: 700 clamp(28px, 5vw, 40px)/1.1 var(--f-display); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+  header p { margin: 0; color: var(--muted); max-width: 65ch; }
+
+  /* ---------- table ---------- */
+  .table {
+    display: grid;
+    grid-template-columns: 1fr var(--mat) 1fr;
+    gap: 14px 18px;
+    align-items: center;
+    overflow-x: auto;
+  }
+  .hand { grid-column: 2; display: flex; justify-content: center; }
+  .hand .card { width: 17%; margin-inline: -1.6%; box-shadow: 0 6px 14px #0008; }
+  .hand.p2 .card:nth-child(1) { transform: rotate(186deg); } .hand.p2 .card:nth-child(2) { transform: rotate(183deg); }
+  .hand.p2 .card:nth-child(3) { transform: rotate(180deg); } .hand.p2 .card:nth-child(4) { transform: rotate(177deg); }
+  .hand.p2 .card:nth-child(5) { transform: rotate(174deg); }
+  .hand.p1 .card:nth-child(1) { transform: rotate(-6deg); } .hand.p1 .card:nth-child(2) { transform: rotate(-3deg); }
+  .hand.p1 .card:nth-child(4) { transform: rotate(3deg); } .hand.p1 .card:nth-child(5) { transform: rotate(6deg); }
+
+  .mat { grid-column: 2; position: relative; aspect-ratio: 1398 / 1500; width: 100%; }
+  .mat > .board { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 10px; display: block; }
+  .mat.p2 { transform: rotate(180deg); }
+
+  /* lanes measured off background_1.jpg (1398×1500): x = 30, 510, 1010 px; lane width ≈ 362 px; lane top ≈ 80 px */
+  .proto {
+    position: absolute; top: 5.6%;
+    width: 25.9%; aspect-ratio: 521 / 372;
+    filter: drop-shadow(0 6px 10px #000a);
+  }
+  .proto.l { left: 2.2%; } .proto.m { left: 36.6%; } .proto.r { left: 72.3%; }
+  .proto img {
+    position: absolute; left: 50%; top: 50%;
+    width: 71.4%; height: 140%;          /* card is portrait; box is landscape */
+    transform: translate(-50%, -50%) rotate(90deg);
+    border-radius: 6px;
+  }
+
+  .side { display: grid; gap: 14px; justify-items: center; align-content: center; }
+  .side.left { grid-column: 1; }
+  .side.right { grid-column: 3; }
+  .pile { display: grid; gap: 6px; justify-items: center; width: min(110px, 100%); }
+  .pile .slot { position: relative; width: 100%; aspect-ratio: 372 / 521; }
+  .deck .slot img { position: absolute; inset: 0; width: 100%; border-radius: 6px; }
+  .deck .slot img:nth-child(1) { transform: translate(4px, 4px); filter: brightness(.55); }
+  .deck .slot img:nth-child(2) { transform: translate(2px, 2px); filter: brightness(.75); }
+  .trash .slot { border: 1.5px dashed var(--line); border-radius: 6px; display: grid; place-items: center;
+                 font: 500 11px/1 var(--f-mono); color: var(--muted); letter-spacing: .08em; }
+  .tag { font: 500 11px/1.3 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: center; }
+  .tag b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .center {
+    grid-column: 1 / -1; display: grid; grid-template-columns: 1fr var(--mat) 1fr; gap: 18px; align-items: center;
+  }
+  .lines { grid-column: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+           border-block: 1px solid var(--line); padding-block: 8px; }
+  .lines div { text-align: center; font: 500 11px/1.35 var(--f-mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .lines div b { display: block; color: var(--ink); font: 700 13px/1.3 var(--f-display); letter-spacing: .04em; }
+  .control { grid-column: 3; display: grid; gap: 6px; justify-items: center; width: min(78px, 100%); justify-self: center; }
+  .control img { width: 100%; border-radius: 5px; transform: rotate(90deg); margin-block: 14px; box-shadow: 0 0 0 1.5px var(--cyan), 0 0 18px #bff4f455; }
+
+  .who { font: 700 13px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); text-align: center; }
+  .card { display: block; aspect-ratio: 372 / 521; border-radius: 5px; }
+
+  /* ---------- notes ---------- */
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+  .note { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+  .note h2 { margin: 0; font: 700 14px/1.2 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+  .note ul, .note ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--muted); }
+  .note li b { color: var(--ink); font-weight: 500; }
+  table { border-collapse: collapse; width: 100%; font: 13px/1.4 var(--f-mono); font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 400; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+
+  .w2 { grid-area: 1 / 2; } .hand.p2 { grid-row: 2; } .side.left, .mat.p2 { grid-row: 3; }
+  .center { grid-row: 4; } .mat.p1, .side.right { grid-row: 5; } .hand.p1 { grid-row: 6; } .w1 { grid-area: 7 / 2; }
+  .who { grid-column: 2; }
+
+  @media (max-width: 640px) {
+    .table, .center { grid-template-columns: 1fr; }
+    .table > *, .center > * { grid-column: 1 !important; grid-row: auto !important; }
+    .side.left, .side.right { grid-auto-flow: column; }
+    .lines { grid-column: 1; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="prompt">:\&gt;setup ... complete</span>
+    <h1>Opening board, turn 1</h1>
+    <p>The field right after setup: Protocols drafted and placed &ldquo;Loading&hellip;&rdquo; side up, 18-card decks shuffled, 5-card hands drawn, and the Control component in its neutral spot. Player 1 drafted first, so Player 1 takes the first turn.</p>
+  </header>
+
+  <section class="table" aria-label="Game table">
+    <div class="who w2">Player 2</div>
+    <div class="hand p2" aria-label="Player 2 hand, 5 cards">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+    </div>
+
+    <div class="side left">
+      <div class="pile deck">
+        <div class="slot"><img src="../resources/img/cards/Cardback.gif" alt=""><img src="../resources/img/cards/Cardback.gif" alt=""><img src="../resources/img/cards/Cardback.gif" alt="Player 2 deck"></div>
+        <span class="tag">Deck <b>13</b></span>
+      </div>
+      <div class="pile trash"><div class="slot">EMPTY</div><span class="tag">Trash <b>0</b></span></div>
+    </div>
+
+    <!-- Player 2's mat is rotated 180°, so their left space (Death) appears on the viewer's right. -->
+    <div class="mat p2">
+      <img class="board" src="../resources/img/background_1.jpg" alt="Player 2 mat">
+      <div class="proto l"><img src="../resources/img/cards/Death/A.gif" alt="Death protocol, Loading side"></div>
+      <div class="proto m"><img src="../resources/img/cards/Metal/A.gif" alt="Metal protocol, Loading side"></div>
+      <div class="proto r"><img src="../resources/img/cards/Psychic/A.gif" alt="Psychic protocol, Loading side"></div>
+    </div>
+
+    <div class="center">
+      <div class="lines" aria-label="Lines">
+        <div><b>Line 1</b>Spirit vs Psychic<br>0 &ndash; 0</div>
+        <div><b>Line 2</b>Fire vs Metal<br>0 &ndash; 0</div>
+        <div><b>Line 3</b>Water vs Death<br>0 &ndash; 0</div>
+      </div>
+      <div class="control">
+        <img src="../resources/img/cards/Control/A.gif" alt="Control component, neutral">
+        <span class="tag">Control<br><b>Neutral</b></span>
+      </div>
+    </div>
+
+    <div class="mat p1">
+      <img class="board" src="../resources/img/background_1.jpg" alt="Player 1 mat">
+      <div class="proto l"><img src="../resources/img/cards/Spirit/A.gif" alt="Spirit protocol, Loading side"></div>
+      <div class="proto m"><img src="../resources/img/cards/Fire/A.gif" alt="Fire protocol, Loading side"></div>
+      <div class="proto r"><img src="../resources/img/cards/Water/A.gif" alt="Water protocol, Loading side"></div>
+    </div>
+
+    <div class="side right">
+      <div class="pile trash"><div class="slot">EMPTY</div><span class="tag">Trash <b>0</b></span></div>
+      <div class="pile deck">
+        <div class="slot"><img src="../resources/img/cards/Cardback.gif" alt=""><img src="../resources/img/cards/Cardback.gif" alt=""><img src="../resources/img/cards/Cardback.gif" alt="Player 1 deck"></div>
+        <span class="tag">Deck <b>13</b></span>
+      </div>
+    </div>
+
+    <div class="hand p1" aria-label="Player 1 hand, 5 cards">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+      <img class="card" src="../resources/img/cards/Cardback.gif" alt="">
+    </div>
+    <div class="who w1">Player 1 &middot; goes first</div>
+  </section>
+
+  <section class="notes">
+    <div class="note">
+      <h2>The draft (1-2-2-1)</h2>
+      <table>
+        <tr><th>Pick</th><th>Player</th><th>Protocols</th><th>Space</th></tr>
+        <tr><td>1</td><td>P1</td><td>Spirit</td><td>Left</td></tr>
+        <tr><td>2</td><td>P2</td><td>Death, Metal</td><td>Left, Mid</td></tr>
+        <tr><td>3</td><td>P1</td><td>Fire, Water</td><td>Mid, Right</td></tr>
+        <tr><td>4</td><td>P2</td><td>Psychic</td><td>Right</td></tr>
+      </table>
+    </div>
+    <div class="note">
+      <h2>What's on the table</h2>
+      <ul>
+        <li><b>Protocols:</b> 3 per player, &ldquo;Loading&hellip;&rdquo; side up, facing the opponent's to form 3 lines.</li>
+        <li><b>Decks:</b> 18 Command cards each (6 per Protocol), 13 left after drawing.</li>
+        <li><b>Hands:</b> 5 cards each, private to their owner.</li>
+        <li><b>Trash:</b> empty; cards go here face-up when discarded or deleted.</li>
+        <li><b>Control:</b> neutral until someone leads in 2 lines at Check Control.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h2>Player 1's first turn</h2>
+      <ol>
+        <li><b>Start</b>: no cards in play, nothing triggers.</li>
+        <li><b>Control</b>: all lines are 0&ndash;0, so Control stays neutral.</li>
+        <li><b>Compile</b>: no line at 10+, skip.</li>
+        <li><b>Action</b>: play 1 card (face-up into its Protocol's line, or face-down for value 2 into any line).</li>
+        <li><b>Cache</b>: 4 cards in hand, nothing to discard.</li>
+        <li><b>End</b>: no End effects.</li>
+      </ol>
+    </div>
+  </section>
+</div>
