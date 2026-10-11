@@ -1,0 +1,16 @@
+{
+    "name": "Compile.Engine.Cards",
+    "rootNamespace": "Compile.Engine.Cards",
+    "references": [
+        "Compile.Engine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

@@ -30,3 +30,6 @@ crashlytics-build.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated IDE solution files
+*.slnx
