@@ -3,10 +3,10 @@ using System.Linq;
 
 namespace Compile.Engine.Views
 {
-    // What one player can see of a game. The board and HUD render only from these types; for now a
-    // client-side stand-in produces them, and later the rules engine (Phase 3) and the network
-    // (Phase 6) will. Everything is from the viewer's seat: "local" is the viewer, and lines run from
-    // the viewer's left to right.
+    // What one player can see of a game. The board and HUD render only from these types. The rules
+    // engine produces them (Game.ViewFor), with everything the viewer may not see left out; the Phase 2
+    // board stand-in and, later, the network (Phase 6) produce the same types. Everything is from the
+    // viewer's seat: "local" is the viewer, and lines run from the viewer's left to right.
 
     public enum TurnPhase
     {
@@ -83,9 +83,30 @@ namespace Compile.Engine.Views
     // A decision the viewer has to make, such as "Choose 1 card to flip".
     public sealed class ChoiceInfo
     {
+        public ChoiceKind Kind { get; set; } = ChoiceKind.Cards;
         public string Prompt { get; set; }
         public IReadOnlyCollection<int> ValidCards { get; set; } = new List<int>();
+        public IReadOnlyCollection<int> ValidLines { get; set; } = new List<int>();   // from the viewer's seat
+        public int Min { get; set; } = 1;
+        public int Max { get; set; } = 1;
         public bool Optional { get; set; }
+    }
+
+    public sealed class DraftInfo
+    {
+        public IReadOnlyList<string> Available { get; set; } = new List<string>();
+        public IReadOnlyList<string> LocalPicks { get; set; } = new List<string>();      // left, middle, right
+        public IReadOnlyList<string> OpponentPicks { get; set; } = new List<string>();
+        public bool LocalPick { get; set; }         // it's the viewer's pick
+        public int PicksRemaining { get; set; }     // in the current player's turn
+    }
+
+    public enum Outcome
+    {
+        None,
+        LocalWon,
+        OpponentWon,
+        Draw,
     }
 
     public sealed class LogEntry
@@ -96,6 +117,12 @@ namespace Compile.Engine.Views
 
     public sealed class PlayerView
     {
+        public GameStage Stage { get; set; } = GameStage.Playing;
+        public DraftInfo Draft { get; set; }        // only during the draft
+        public Outcome Outcome { get; set; }
+        public EndReason EndReason { get; set; }
+        public bool CanAct { get; set; }            // the viewer may Play or Refresh now
+        public bool CanRefresh { get; set; }
         public SideInfo Local { get; set; } = new SideInfo();
         public SideInfo Opponent { get; set; } = new SideInfo();
         public IReadOnlyList<CardInfo> Hand { get; set; } = new List<CardInfo>();

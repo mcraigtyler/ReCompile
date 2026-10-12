@@ -272,6 +272,17 @@ When you play the top card of your deck face-down, you can't look at it until it
 | **Trash** | Where discarded and deleted cards go. Shuffled into a new deck when you need to draw from an empty deck. |
 | **Uncovered** | The top card of a stack (furthest from the Protocol). Each stack has only one. |
 
+## House Rulings
+
+Situations the rulesheet and Codex don't settle, and how this game handles them. Each one has a test.
+
+| Situation | Ruling |
+|---|---|
+| Neither player can play or draw | If two turns in a row pass with no action (no card played, no Refresh, no Compile), nothing can change, so the game ends. The player with more Compiled Protocols wins; with the same number, it's a draw. |
+| Refresh with nothing to draw | You can't Refresh if your deck and trash are both empty (it would draw nothing). With cards in hand you can always play one face-down instead. |
+| Forced Refresh | With no cards in hand, the Refresh happens automatically at the start of your Action step. |
+| Recompile from an empty deck | Drawing your opponent's top card is a draw, so if their deck is empty, their trash is shuffled into a new deck first. If both are empty, you get nothing. |
+
 ---
 
 *Compile © 2024 Flat River Group, LLC — Greater Than Games. Design by Michael Yang.*

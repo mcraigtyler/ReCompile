@@ -30,6 +30,9 @@ namespace Compile.Engine.Cards
         public IEnumerable<CardDefinition> CardsFor(string protocol) =>
             _cards.Values.Where(c => c.Protocol == protocol).OrderBy(c => c.Value);
 
+        // The cards as the rules engine sees them (Protocol and value).
+        public CardCatalog ToCatalog() => new CardCatalog(_cards.Values.Select(c => new CardSpec(c.Protocol, c.Value)));
+
         public static CardDatabase Parse(string cardsJson, string protocolsJson)
         {
             var cards = JArray.Parse(cardsJson).Select(ParseCard).ToList();

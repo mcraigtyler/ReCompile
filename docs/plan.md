@@ -195,43 +195,49 @@ The board reads a `PlayerView` (the view-model type the engine and network will 
 
 **Goal:** a complete game of Compile runs inside the engine, with cards that have values but no text. Can run in parallel with Phases 1–2.
 
+The engine is `Compile.Engine.Game` (no Unity references), in `Assets/Compile/Engine/Game/`. Players submit `Intent`s; the engine checks them, applies them, and runs forward on a last-in-first-out step stack until it needs input again (an action or a `PendingChoice`). It never blocks.
+
 ### Tasks
 
 **State and setup**
 
-- [ ] `GameState`, `PlayerState`, `Line`, `Stack`, `CardInstance` per [design §5](design.md#state-model)
-- [ ] Seeded RNG; deterministic shuffle
-- [ ] Draft (1-2-2-1) with left → middle → right placement
-- [ ] Deck building (6 cards × 3 Protocols), opening hands of 5
-- [ ] Line mapping between seats (player index `i` ↔ opponent index `2 - i`)
+- [x] `GameState`, `PlayerState`, `Line`, `CardInstance`, `ProtocolSlot` per [design §5](design.md#state-model); `CardCatalog`/`CardSpec` (Protocol and value) built from `CardDatabase.ToCatalog()`
+- [x] Seeded RNG (SplitMix64, the same on every runtime); deterministic Fisher–Yates shuffle
+- [x] Draft (1-2-2-1) with left → middle → right placement, as `DraftPick` intents; `Game.CreateDrafted` skips it
+- [x] Deck building (6 cards × 3 Protocols), opening hands of 5
+- [x] Line mapping between seats: field lines are numbered from seat 0's left; a seat's own line `i` is field line `i` (seat 0) or `2 - i` (seat 1). Intents, choices, and views use the player's own numbering
 
 **Turn loop**
 
-- [ ] Phases: Start → Control → Compile → Action → Cache → End
-- [ ] Line value (face-down = 2), Control check (lead in ≥ 2 lines)
-- [ ] Play face-up (matching Protocol) / face-down (any line)
-- [ ] Refresh (only below 5 cards), forced Refresh at 0, skip Action when nothing is possible
-- [ ] Draw with reshuffle from trash; empty-deck top-card effects do nothing
-- [ ] Clear Cache (discard down to 5)
-- [ ] Compile: Control return + optional rearrange → simultaneous delete → flip Protocol or Recompile (draw opponent's top card, ownership change)
-- [ ] Rearrange validation (must differ from start)
-- [ ] Victory check after each Compile
+- [x] Phases: Start → Control → Compile → Action → Cache → End
+- [x] Line value (face-down = 2), Control check (lead in ≥ 2 lines, from neutral or the opponent; only the active player checks)
+- [x] Play face-up (matching Protocol on either side) / face-down (any line)
+- [x] Refresh (only below 5 cards), forced Refresh at 0 (automatic), Action skipped when the player can neither play nor draw
+- [x] Draw as one batch, shuffling the trash into a new deck when needed
+- [x] Clear Cache (discard down to 5)
+- [x] Compile: Control return + optional rearrange → simultaneous delete (cards to their owners' trashes, face-up) → flip the Protocol now in that line, or Recompile (draw the opponent's top card, which changes owner). Compiling replaces the Action; one line per turn, the player chooses if several qualify
+- [x] Rearrange validation (a real permutation, different from the start; Compiled status moves with the Protocol, cards stay)
+- [x] Victory check after each Compile
+- [x] House rulings for situations the rules don't cover (stalemate, Refresh with nothing to draw); see [rules.md](official/rules.md#house-rulings)
+- [ ] Empty-deck top-card effects do nothing: no card effects yet (Phase 5)
 
 **Interfaces**
 
-- [ ] `Intent` types: `DraftPick`, `PlayCard`, `Refresh`, `AnswerChoice`, `Rearrange`, `Concede`
-- [ ] `IntentResult` with a list of `GameEvent`s (for animation and logging)
-- [ ] `PendingChoice` mechanism (used here for Clear Cache, Compile line choice, rearrange)
-- [ ] `PlayerView` redaction per [design §6](design.md#redaction-per-player-view), producing the same view-model types the Phase 2 board reads
+- [x] `Intent` types: `DraftPick`, `PlayCard`, `Refresh`, `AnswerChoice`, `Rearrange`, `Concede`
+- [x] `IntentResult` with the `GameEvent`s it caused (for animation and the log); each event can describe itself for a viewer without revealing hidden cards
+- [x] `PendingChoice` (cards, line, or rearrange; min/max; optional) used for Clear Cache, choosing the line to compile, and Control's rearrange
+- [x] `Game.ViewFor(seat)` builds the same `PlayerView` the Phase 2 board reads, now with the draft, outcome, `CanAct`/`CanRefresh`, and richer `ChoiceInfo`
+- [x] Redaction: the opponent's hand and deck are counts, their face-down cards have no identity, and a card gets a new random id whenever it goes into a hand or deck, so it can't be recognized when it's later played face-down
+- [x] Rule queries the Phase 5 persistent effects will hook into: `CardValue`, `LineValue`, `CanPlayFaceUp`, `CanCompile`; comments mark where Start/End effects, middle text, and draw/discard triggers will resolve
 
 **Testing**
 
-- [ ] Scenario helper: build a `GameState` from a compact text description
-- [ ] Tests for every rule above, named after the rule (e.g. `Compile_DeletesBothSidesSimultaneously`)
-- [ ] Random-agent fuzzer: thousands of seeded games; assert card count conservation, legal states, games end
-- [ ] Redaction tests: opponent view never contains hidden card identities
+- [x] `Scenario` helper: build a game from a compact text description (Protocols, hands, decks, trashes, stacks with face-down and owner marks, phase, Control)
+- [x] Tests for every rule above, named after the rule (`Compile_DeletesBothSidesAndFlipsTheProtocol`, `Control_TiesDontCountAsALead`, …): 55 engine tests
+- [x] Random-agent fuzzer: random drafts, plays, refreshes, and choice answers, checking after every move that 36 cards exist with unique ids, every card is where its owner rules say, hands stay within limits, games end, and neither view leaks hidden cards. 200 games run with the normal tests; the 10,000-game run is `Fuzz_10000RandomGames` (explicit, a few minutes)
+- [x] Redaction tests: the opponent's view and log never contain hidden card identities or ids
 
-**Done when:** the fuzzer plays 10,000 games of text-less cards with no invariant failures, and every rule in `rules.md` (except card text) has a test.
+**Done:** 10,000 fuzzed games end with no invariant failures, and every rule in `rules.md` other than card text has a test.
 
 ---
 
@@ -392,7 +398,7 @@ Can start any time after Phase 5. A first look at their text shows they mostly r
 | UI system | Phase 1 | uGUI (installed, matches design) vs. UI Toolkit |
 | Visual style for menus | Phase 1 | Match the board art's neon/glitch look, or a plainer style |
 | First player choice | Phase 1 (UI), Phase 6 (logic) | Random coin flip vs. host chooses |
-| Stalled games | Phase 3 | Rule if both decks and trashes run out |
+| ~~Stalled games~~ | Phase 3 | Decided: two turns in a row where neither player can act ends the game; more compiled Protocols wins, otherwise a draw ([house rulings](official/rules.md#house-rulings)) |
 | Turn timer | Phase 7 | None vs. optional chess clock |
 | Spectators | Phase 6 | Keep the redacted-view design open for a third view, or not |
 | Dedicated server | After release | When public play makes host-side hidden info unacceptable |

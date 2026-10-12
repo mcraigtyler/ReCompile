@@ -254,7 +254,9 @@ Resolution rules the engine must enforce (from the Codex):
 
 ### Choices and suspension
 
-The engine never blocks. When a decision is needed it stores a `PendingChoice { Player, Prompt, ValidTargets, Min, Max, Optional }` and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
+The engine never blocks. When a decision is needed it stores a `PendingChoice { Seat, Kind, Prompt, ValidCards, ValidLines, Min, Max, Optional }` and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
+
+In code (`Assets/Compile/Engine/Game/`), `Game.Submit(intent)` returns an `IntentResult` with the `GameEvent`s it caused, and `Game.ViewFor(seat)` returns that player's `PlayerView`. Work runs on a last-in-first-out stack of steps: the turn's phases are steps, and in Phase 5 card text will push its own steps on top, which gives the Codex's interrupt order for free.
 
 ### Card data
 
@@ -305,6 +307,8 @@ All gameplay goes through RPCs. NetworkVariables aren't used for game state beca
 | Card played from deck top face-down | Identity once it's in the field | Hidden |
 | Reveal effect | Card | Card (for the reveal), then hidden again |
 | Trash, face-up field cards | Everything | Everything |
+
+Card ids are part of redaction too. A card gets a new random id whenever it goes into a hand or a deck, so a player who saw a card face-up (in the field or a trash) can't recognize it by its id when it's later played face-down. A fuzz test checks that no view ever contains the id of a card hidden from that viewer.
 
 ### Hidden information and trust
 
