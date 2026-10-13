@@ -132,6 +132,7 @@ Every action works with a mouse and with touch.
 | Rearrange Protocols (Control) | Drag Protocols into a new order on either side, then **Confirm** or **Don't rearrange**. Confirm is disabled until the order is different. | Drag, or tap two Protocols to swap them. |
 | Clear Cache | Select cards to discard until you hold 5. | Same, with tap. |
 | Browse a trash | Click the trash. | Tap the trash. |
+| Undo | **Undo** button or Ctrl+Z takes back your last decision this turn, as often as you like, until you press **End turn**. Disabled (with the reason) once you've seen new hidden cards, e.g. after drawing. | Undo button. |
 
 Dragging on touch needs a small dead zone (about 10 px) so a tap isn't read as a drag.
 
@@ -256,7 +257,31 @@ Resolution rules the engine must enforce (from the Codex):
 
 The engine never blocks. When a decision is needed it stores a `PendingChoice { Seat, Kind, Prompt, ValidCards, ValidLines, Min, Max, Optional }` and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
 
+| Choice kind | Used for |
+|---|---|
+| `FieldCards` (filter, min/max) | Flip, delete, shift, return, and reveal targets |
+| `HandCards` | Discard, give, choosing a card to play |
+| `Line` (from / to) | Compiling, shift destinations, where to play |
+| `Option` | "Either … or …", and yes/no for "may" |
+| `Rearrange` / `Swap` | Control's rearrange, Water 2, Psychic 2, Spirit 4 |
+| `Order` | Several Start/End effects at once, "each" effects |
+
+Reveals aren't choices: the engine shows the revealed cards to both players for a moment, then hides them again. Phase 3 has `Cards`, `Line`, and `Rearrange`; the rest arrive in Phase 4.
+
 In code (`Assets/Compile/Engine/Game/`), `Game.Submit(intent)` returns an `IntentResult` with the `GameEvent`s it caused, and `Game.ViewFor(seat)` returns that player's `PlayerView`. Work runs on a last-in-first-out stack of steps: the turn's phases are steps, and in Phase 5 card text will push its own steps on top, which gives the Codex's interrupt order for free.
+
+### Undo
+
+The active player can undo any number of their decisions in the current turn, until they press **End turn**.
+
+- **End turn:** after the End phase the engine waits for an `EndTurn` intent before the next turn begins, so the whole turn (End effects included) stays undoable. In hot-seat, End turn leads to the pass screen.
+- **How:** the engine snapshots the state (including the RNG) at the start of each turn and records the turn's intents. `Undo` restores the snapshot and replays every intent except the last. Because the engine is deterministic, the replay always matches what happened.
+- **Barriers:** undo would let a player look at hidden cards and then take the move back (e.g. Refresh, see the cards, undo, play differently). So undo can't go back past anything that showed the player new hidden information or used randomness they've seen the result of:
+  - drawing (including a reshuffle, and taking the opponent's top card on a Recompile);
+  - playing or discarding from the top of a deck, reveals, and random takes from a hand (Phase 4b);
+  - choices the opponent made during the turn.
+- **Scope:** only the active player can undo, and only their own decisions. Compiling is forced, so it can't be undone itself, but a choice made during it (which line, Control's rearrange) can.
+- **Online:** the host's engine does the undo; the opponent's view returns to the earlier state, and the log says what was undone.
 
 ### Card data
 

@@ -16,7 +16,7 @@ flowchart LR
   P0[0 · Foundation] --> P1[1 · Setup screens]
   P1 --> P2[2 · Board layout]
   P0 --> P3[3 · Engine core]
-  P2 --> P4[4 · Hot-seat prototype]
+  P2 --> P4[4 · Effects + hot-seat]
   P3 --> P4
   P3 --> P5[5 · Main Set 1 cards]
   P4 --> P6[6 · Online play]
@@ -33,7 +33,7 @@ flowchart LR
 | 1 | Setup screens | Click through Title → Host/Join → Lobby → Draft → Result with stand-in data | M |
 | 2 | Board layout | One player's board with real cards, drag to play, wide and tall layouts | M |
 | 3 | Engine core | A full game runs in tests with text-less cards | M |
-| 4 | Hot-seat prototype | Two people play a full game on one screen in the Editor | S |
+| 4 | Effects framework + hot-seat (4a–4c) | Two people play a full game on one screen; every kind of card effect works and can be triggered from the Debug menu | L |
 | 5 | Main Set 1 cards | All 72 Main Set 1 cards work, with tests | L |
 | 6 | Online play | Two browsers play a full game with a room code | L |
 | 7 | Polish and tablets | Animations, sound, reconnect; verified on iPad and Android tablets | M |
@@ -241,21 +241,134 @@ The engine is `Compile.Engine.Game` (no Unity references), in `Assets/Compile/En
 
 ---
 
-## Phase 4 — Hot-Seat Prototype
+## Phase 4 — Effects Framework and Hot-Seat
 
-**Goal:** two people play a full game on one screen in the Editor, using the Phase 2 board driven by the Phase 3 engine.
+**Goal:** two people play a full game on one screen in the Editor, using the Phase 2 board driven by the Phase 3 engine. Every effect a card can produce works in the engine and has board UI, so Phase 5 only adds card classes.
 
-### Tasks
+**Why this phase is bigger than "hot-seat":** in Compile, a player's own choices are only Play or Refresh, which line to compile, Clear Cache, and Control's rearrange, and Phase 3 implements all of them. Flip, shift, discard, delete, return, reveal, give/take, and play-from-deck happen **only** when card text says so ([rules](official/rules.md#rules-details)). So the effect building blocks, and every kind of question card text can ask, are built here, before any card has text.
 
-- [ ] `MatchController` that owns a local engine instance and replaces the Phase 2 stub
+The work is split into three parts:
+
+```mermaid
+flowchart LR
+  P3[3 · Engine core] --> A[4a · Hot-seat on the engine]
+  P3 --> B[4b · Effects engine]
+  A --> C[4c · Effects on the board]
+  B --> C
+  C --> P5[5 · Main Set 1 cards]
+```
+
+| Part | Goal | Playable result | Size |
+|---|---|---|---|
+| 4a | Hot-seat on the engine | Two people play Compile without card text on one screen | M |
+| 4b | Effects engine | Every effect and kind of question works in tests and the fuzzer | L |
+| 4c | Effects on the board | Every effect can be triggered from the Debug menu and answered on the board | M |
+
+4a and 4b don't depend on each other and can run at the same time, as Phases 2 and 3 did. 4a comes first if they run one after the other: it puts the engine in front of real players early, so bugs in the turn flow, Control, and compiling show up before effects make everything harder to debug.
+
+### Kinds of question card text asks
+
+Surveyed from `cards.json` (counts are cards whose text uses the word).
+
+| Kind | Examples | Count |
+|---|---|---|
+| Pick card(s) on the field, filtered by side, covered/uncovered, face-up/down, "other", or line | Fire 0 "flip 1 other card", Darkness 0 "shift 1 of your opponent's covered cards" | flip 25, delete 16, shift 14, return 4 |
+| Pick card(s) from your hand | Discard N; Love 3 "give 1 card"; Darkness 3 "play 1 card face-down in another line" | discard 28, give 2 |
+| Pick a line | Shift destination; Gravity 1 "to or from this line"; Light 3 "to another line" | shift 14, play 11 |
+| Pick an option / "may" yes-no | Spirit 1 "Either discard 1 card or flip this card"; Light 2 "you may shift or flip that card" | may 14, either 2 |
+| Rearrange or swap Protocols (own or opponent's) | Water 2, Psychic 2, Spirit 4 "swap 2 of your protocols" | 3 |
+| Order simultaneous effects | Start/End effects; "each" (Plague 3, Life 0, Water 1) | each 5, plus Start/End cards |
+| Reveal (shown to both, then hidden again) | Psychic 0 "reveals their hand"; Light 2 "reveal 1 face-down card" | 4 |
+| No question (the engine does it) | Draw; draw the opponent's top card (Love 1); take a random card (Love 3); play the top of a deck (Gravity 6, Life 0, Water 1) | — |
+
+### 4a — Hot-seat on the engine
+
+**Goal:** two people play a full game of Compile without card text on one screen, on the real engine.
+
+**Match**
+
+- [ ] `MatchController` that owns a `Game` and replaces the Phase 2 `BoardSandbox`
 - [ ] Board renders the active player's `PlayerView`; "Pass to Player 2" screen between turns hides the previous hand
 - [ ] All inputs submit engine `Intent`s; illegal moves show the engine's reason
-- [ ] Engine `PendingChoice` drives the choice prompt and rearrange UI from Phase 2
-- [ ] Engine events feed the event log
+- [ ] Engine events feed the event log (`GameEvent.Describe`)
 - [ ] Phase 1 Draft and Result screens use the engine instead of the stub
 - [ ] "Local game" entry on the Title screen
 
-**Done when:** two people draft and finish a game in the Editor and in a WebGL build with no engine bugs found.
+**Board UI for the questions the engine already asks**
+
+- [ ] Hand cards: Clear Cache picks the cards to discard from the hand fan; Confirm shows "n of N"
+- [ ] Line: choosing which line to compile when several qualify (lanes highlight with the existing `ShowLanes`)
+- [ ] Rearrange: Control's optional rearrange of either player's Protocols (extends the Phase 2 rearrange flow to the opponent's row), with a "Don't rearrange" option
+
+**Undo** (see [design §5](design.md#undo))
+
+- [ ] **End turn:** the engine stops after the End phase and waits for an `EndTurn` intent before the next turn starts, so the whole turn stays undoable until the player confirms it. In hot-seat, End turn leads to the "Pass to Player 2" screen
+- [ ] `Undo` intent: takes back the active player's last decision this turn (a play, Refresh, or answered choice), as many times as they like, back to the start of the turn or the last undo barrier
+- [ ] Engine keeps a snapshot at the start of the turn (state and RNG) plus the turn's intents; undo restores the snapshot and replays every intent but the last, so it can't drift from what really happened
+- [ ] Undo barriers: nothing that showed the player new hidden information can be undone (drawing, a reshuffle, taking the opponent's top card on a Recompile). A Refresh is therefore final once its cards are drawn
+- [ ] `PlayerView` says whether undo is available; the board has an Undo button (and Ctrl+Z on desktop) next to End turn; the log notes "You undid …"
+- [ ] Tests: undo after each kind of decision restores the exact earlier state and view; barriers can't be passed; only the active player can undo; the fuzzer randomly undoes and redoes and checks that replaying gives identical states
+
+**Done when:** two people draft and finish a game without card text in the Editor and in a WebGL build, in wide and tall layouts, with no engine bugs found, undoing moves freely within a turn.
+
+### 4b — Effects engine
+
+**Goal:** every effect a card can produce, and every question it can ask, works in the engine with tests. Engine only, no UI.
+
+**Effect framework**
+
+- [ ] Building blocks: `Flip`, `Shift`, `Delete`, `Return`, `Reveal`, `PlayFrom` (hand or top of a deck, face-down, either player, into a given line), `Give`/`Take` (random or chosen), `Swap`. `Draw`, `Discard`, and `Rearrange` already exist in `Game.Turn.cs`
+- [ ] Resolution stack for effects (extends the existing step stack): interrupts, last in first out, and cancelling the rest of a card's text if it's covered, flipped, or removed mid-resolution
+- [ ] Committed cards: a card being played or shifted can't be targeted; "When this card would be covered" resolves before the card lands
+- [ ] Middle text runs when a card is played face-up, flipped face-up, or uncovered (including the card below becoming uncovered when its top card is shifted, deleted, or returned)
+- [ ] Trigger points: Start and End (only what was visible when the phase began; the owner orders them); after draw, discard, delete, and Clear Cache; when this card would be covered or deleted by compiling
+- [ ] "All" (simultaneous, includes covered cards) vs. "each" (one at a time, in the active player's order); uncovered-only by default
+- [ ] Rule-modifier queries that persistent effects can override: `CanPlayFaceUp`, `CanCompile`, `CardValue`, `CanFlip`, "ignore middle commands" (the first three already exist in `Game.cs`)
+- [ ] Card effect base class with Top / Middle / Bottom hooks per [design §5](design.md#effects-and-triggers), and a registry from card id (`Fire_4`) to effect class; empty for now, so every card stays text-less
+
+**Choice kinds** (`PendingChoice`/`ChoiceKind` and `ChoiceInfo`)
+
+- [ ] `FieldCards`, with a filter and min/max
+- [ ] `HandCards`
+- [ ] `Line`, with a "from"/"to" context
+- [ ] `Option`: labeled choices, including yes/no for "may"
+- [ ] `Rearrange` / `Swap`, with the target side fixed or chosen
+- [ ] `Order`: a list of effects to sequence
+- [ ] Reveal: an event plus a short-lived reveal in the view, so revealed cards show to both players and then hide again
+
+**Debug effects**
+
+- [ ] A dev-only `DebugEffect` intent runs any building block ("flip 1 card", "shift 1 of your opponent's covered cards", …), so effects can be tested and played before real card text exists
+
+**Tests**
+
+- [ ] A scenario test for each building block and each choice kind; the `Scenario` helper can run a debug effect
+- [ ] Redaction tests cover reveals: revealed cards are visible to both players only while revealed
+- [ ] The fuzzer also fires random debug effects, keeping its invariants plus the reveal and committed-card rules
+
+**Undo with effects**
+
+- [ ] Undo covers effects and every new choice kind: undoing a choice puts the question back; undoing a play takes back everything its text did
+- [ ] More undo barriers: draws and plays from the top of a deck, reveals, random takes from a hand, and choices the opponent made during the turn (e.g. which cards they discarded)
+- [ ] Tests for each barrier, and fuzzed undo/redo with effects
+
+**Done when:** every building block and choice kind has tests, and 10,000 fuzzed games with random effects and random undos pass.
+
+### 4c — Effects on the board
+
+**Goal:** every effect from 4b can be triggered and answered on the board in a hot-seat game. Depends on 4a and 4b.
+
+- [ ] Debug menu lists every debug effect, as the `BoardSandbox` debug actions do today
+- [ ] Field cards: valid ones glow and the rest dim (exists), now with several picks and a Confirm button
+- [ ] Hand cards and lines for effects (discard, give, choose a card to play, shift destinations), reusing the 4a UI
+- [ ] Options: buttons in the prompt panel
+- [ ] Swap: a "swap 2" mode of the rearrange flow
+- [ ] Order: a list in the prompt, tap to order
+- [ ] Reveal: revealed cards flip up briefly with a banner; a revealed hand opens in a panel like the trash browser
+- [ ] Flip, shift, delete, return, give, and take animate with the existing `CardView` glide and flip (richer animation is Phase 7)
+- [ ] Undo during effects: the Undo button takes back effect choices too, and cards glide back to where they were; when a barrier blocks it, the button is disabled with a short reason ("You drew cards this turn")
+
+**Done when:** every effect can be triggered from the Debug menu and answered on the board in wide and tall layouts, in hot-seat in the Editor and in a WebGL build.
 
 ---
 
@@ -263,16 +376,12 @@ The engine is `Compile.Engine.Game` (no Unity references), in `Assets/Compile/En
 
 **Goal:** all 12 Main Set 1 Protocols (72 cards) work exactly as the cards and Codex say.
 
-### Framework first
+### Framework
 
-- [ ] Card effect base class with Top / Middle / Bottom hooks per [design §5](design.md#effects-and-triggers)
-- [ ] Effect primitives: `Draw`, `Discard`, `Flip`, `Shift`, `Delete`, `Return`, `Reveal`, `PlayFrom`, `Rearrange`, `Choose`
-- [ ] Resolution stack (LIFO), interrupts, cancelling text when its card is covered, flipped, or removed
-- [ ] Committed cards; "When this card would be covered" before landing
-- [ ] Triggers: Start, End, "After you draw/delete/clear cache", "After your opponent discards", "When this card would be deleted by compiling"
-- [ ] Rule-modifier queries for persistent effects (`CanPlayFaceUpIn`, `CanCompile`, `ValueOf`, etc.)
-- [ ] "All" vs. "each" targeting; uncovered-only by default
-- [ ] Card registry mapping `cards.json` ids (`Fire_4`) to effect classes, with a test that every card in scope has one
+The effect framework, choice kinds, and their UI are built in Phase 4. This phase adds:
+
+- [ ] Card effect classes registered for every card in scope, with a test that none is missing
+- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles)
 
 ### Cards, in waves
 
@@ -318,6 +427,7 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 
 - [ ] Phase 1 screens switched from the stub to the real session service
 - [ ] Concede
+- [ ] Undo and End turn over the network: only the active player can undo; the opponent sees the moves taken back (with a log line) and nothing they couldn't already see
 - [ ] Guest disconnect: pause, rejoin with snapshot, 2-minute forfeit timer
 - [ ] Host disconnect: end match with a clear message
 - [ ] "Matches are hosted by the player who creates the room" notice
@@ -408,7 +518,7 @@ Can start any time after Phase 5. A first look at their text shows they mostly r
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Card interactions are more complex than the effect model allows | Rework in Phase 5 | Build the framework against the hardest cards early (Metal 6, Speed 2, Light 0, Spirit 1); fuzz constantly |
+| Card interactions are more complex than the effect model allows | Rework in Phases 4–5 | Design the effect framework and choice kinds in Phase 4 against the hardest cards (Metal 6, Speed 2, Light 0, Spirit 1); fuzz constantly |
 | Stub view models drift from what the engine produces | UI rework in Phase 4 | Define view-model types once, in a shared place, in Phase 2; the engine's redaction produces those same types |
 | Rules ambiguity not covered by the Codex | Wrong behavior, arguments | Record each ruling in tests and a "House rulings" section in `rules.md` |
 | WebGL memory or size limits on iPad | Crashes on tablets | Build every phase; keep art in atlases; check memory in Phase 7, not at release |
