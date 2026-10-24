@@ -93,5 +93,54 @@ namespace Compile.Engine.Tests
             Assert.That(handIds.Intersect(trashIds), Is.Empty);
             Assert.That(game.State.AllCards().Select(c => c.Id).Distinct().Count(), Is.EqualTo(game.State.AllCards().Count()));
         }
+
+        [Test]
+        public void RevealedCardsAreVisibleToBothOnlyWhileRevealed()
+        {
+            var game = Scenario.Load(Setup + @"
+                line 0: Fire_1 | ~Metal_2");
+            game.Debug("reveal-face-down");
+
+            var seen = game.ViewFor(0).Lines[0].Opponent.Cards.Single();
+            Assert.That(seen.CardId, Is.EqualTo("Metal_2"), "revealed to Ann while she decides what to do with it");
+            Assert.That(seen.Revealed, Is.True);
+            Assert.That(seen.FaceUp, Is.False);
+
+            game.Do(AnswerChoice.WithOption(0, 2));
+            seen = game.ViewFor(0).Lines[0].Opponent.Cards.Single();
+            Assert.That(seen.CardId, Is.Null, "hidden again once the text is done");
+            Assert.That(seen.Revealed, Is.False);
+        }
+
+        [Test]
+        public void RevealedHandCardsShowInTheOpponentsViewAndLog()
+        {
+            var game = Scenario.Load(Setup);
+            game.Debug("reveal-from-hand");
+            Assert.That(game.Pending.Kind, Is.EqualTo(ChoiceKind.HandCards));
+            game.Pick("Speed_5");
+
+            var log = string.Join(" | ", game.ViewFor(1).Log.Select(l => l.Text));
+            Assert.That(log, Does.Contain("Ann revealed Speed 5 from their hand."));
+            Assert.That(game.ViewFor(1).Opponent.RevealedHand, Is.Empty, "the reveal is over");
+            Assert.That(game.State.Players[0].Hand.Select(c => c.Id), Has.No.Member(game.History.OfType<CardsRevealed>().Single().Cards.Single().InstanceId),
+                "the revealed card has a new id, since Ann could have shuffled her hand");
+        }
+
+        [Test]
+        public void ShiftedAndReturnedFaceDownCardsArentNamedToTheOpponent()
+        {
+            var game = Scenario.Load(Setup + @"
+                line 0: ~Fire_1 ~Fire_4 |");
+            game.Debug("shift-1");
+            game.Do(AnswerChoice.WithLine(0, 1));
+            game.Debug("return-1");
+            game.Pick("Fire_1");
+
+            var theirs = string.Join(" | ", game.ViewFor(1).Log.Select(l => l.Text));
+            Assert.That(theirs, Does.Contain("Ann shifted a face-down card"));
+            Assert.That(theirs, Does.Contain("Ann returned a face-down card"));
+            Assert.That(theirs, Does.Not.Contain("Fire 4").And.Not.Contain("Fire 1"));
+        }
     }
 }

@@ -21,6 +21,8 @@ namespace Compile.Client.Board
 
         readonly Dictionary<int, HandCard> _cards = new Dictionary<int, HandCard>();
         readonly List<int> _order = new List<int>();
+        readonly HashSet<int> _marked = new HashSet<int>();
+        string _markLabel = "";
         RectTransform _rect;
         CardArtLibrary _art;
         Theme _theme;
@@ -94,6 +96,16 @@ namespace Compile.Client.Board
 
         public void ClearSelection() => Select(-1, true);
 
+        // Marks cards picked for a choice (e.g. to discard): they rise and show a label.
+        public void SetMarked(IEnumerable<int> ids, string label)
+        {
+            _marked.Clear();
+            if (ids != null)
+                _marked.UnionWith(ids);
+            _markLabel = label ?? "";
+            Arrange();
+        }
+
         public CardInfo InfoFor(int id) => _cards.TryGetValue(id, out var card) ? card.Info : null;
 
         // Width available to the fan; narrower on tall screens.
@@ -112,11 +124,17 @@ namespace Compile.Client.Board
             {
                 var card = _cards[_order[i]];
                 var offset = i - (count - 1) / 2f;
-                var selected = card.Info.InstanceId == Selected;
+                var marked = _marked.Contains(card.Info.InstanceId);
+                var selected = card.Info.InstanceId == Selected || marked;
                 var height = CardView.SizePx.y * CardScale;
                 var position = new Vector2(offset * spacing, height / 2f - offset * offset * 5f + (selected ? SelectedLift : 0f));
                 card.SetTarget(position, selected ? 0f : -offset * 3.5f, selected, height * RestDrop);
-                card.SetFaceDownBadge(selected && !SelectedFaceUp);
+                if (marked)
+                    card.SetBadge(_markLabel, Palette.Danger);
+                else if (card.Info.InstanceId == Selected && !SelectedFaceUp)
+                    card.SetBadge("FACE-DOWN · 2", Palette.Cyan);
+                else
+                    card.SetBadge(null, Palette.Cyan);
                 card.transform.SetSiblingIndex(i);
             }
             if (Selected >= 0 && _cards.TryGetValue(Selected, out var top))
@@ -154,6 +172,8 @@ namespace Compile.Client.Board
         HandView _hand;
         UnityEngine.UI.Image _glow;
         RectTransform _badge;
+        TextMeshProUGUI _badgeText;
+        UnityEngine.UI.Image _badgeFrame;
         CanvasGroup _group;
         Vector2 _targetPosition;
         float _targetRotation;
@@ -197,7 +217,9 @@ namespace Compile.Client.Board
             card._badge.anchorMax = new Vector2(1f, 0.5f);
             card._badge.sizeDelta = new Vector2(0f, 64f);
             Ui.Backdrop(card._badge, new Color(0.06f, 0.04f, 0.1f, 0.92f), Palette.Cyan, shadow: false);
+            card._badgeFrame = card._badge.Find("Frame").GetComponent<UnityEngine.UI.Image>();
             var label = Ui.Text(card._badge, "FACE-DOWN · 2", TextStyle.Label, TextAlignmentOptions.Center);
+            card._badgeText = label;
             label.color = Palette.Cyan;
             label.fontSize = 24f;
             label.textWrappingMode = TextWrappingModes.NoWrap;
@@ -216,7 +238,16 @@ namespace Compile.Client.Board
             _glow.enabled = selected;
         }
 
-        public void SetFaceDownBadge(bool on) => _badge.gameObject.SetActive(on);
+        // A label across the card (e.g. "FACE-DOWN · 2" or "DISCARD"); null hides it.
+        public void SetBadge(string text, Color color)
+        {
+            _badge.gameObject.SetActive(!string.IsNullOrEmpty(text));
+            if (string.IsNullOrEmpty(text))
+                return;
+            _badgeText.text = text;
+            _badgeText.color = color;
+            _badgeFrame.color = color;
+        }
 
         void Update()
         {

@@ -28,6 +28,11 @@ namespace Compile.Engine
         public int Owner { get; internal set; }
         public bool FaceUp { get; internal set; }
 
+        // Counters that tell card text whether its card is still in play the way it was when the text began:
+        // Changes counts leaving the field and flips, Covers counts being covered.
+        internal int Changes;
+        internal int Covers;
+
         internal CardInstance(int id, CardSpec spec, int owner)
         {
             Id = id;
@@ -99,6 +104,9 @@ namespace Compile.Engine
         public const int Neutral = -1;
 
         internal readonly HashSet<int> UsedIds = new HashSet<int>();
+        internal readonly List<CardInstance> Committed = new List<CardInstance>();     // entering the field, in order
+        internal readonly HashSet<CardInstance> Revealed = new HashSet<CardInstance>(); // shown to both players for now
+        internal readonly HashSet<(CardInstance, Trigger)> Forewarned = new HashSet<(CardInstance, Trigger)>(); // "would be" text resolving now
 
         public long Seed { get; }
         internal Rng Rng { get; }
@@ -127,7 +135,11 @@ namespace Compile.Engine
         // Every card in the game, wherever it is.
         public IEnumerable<CardInstance> AllCards() =>
             Players.SelectMany(p => p.DeckCards.Concat(p.HandCards).Concat(p.TrashCards))
-                .Concat(Lines.SelectMany(l => l.StackCards[0].Concat(l.StackCards[1])));
+                .Concat(Lines.SelectMany(l => l.StackCards[0].Concat(l.StackCards[1])))
+                .Concat(Committed);
+
+        // Cards being played or shifted: on their way into the field, and not selectable by anything.
+        public IReadOnlyList<CardInstance> CommittedCards => Committed;
 
         // ---- Seats and lines ----
 

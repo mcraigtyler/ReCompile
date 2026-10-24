@@ -188,7 +188,7 @@ namespace Compile.Engine.Tests
                 hand 1: Metal_0
                 turn 0 Cache");
             var choice = game.Pending;
-            Assert.That(choice.Kind, Is.EqualTo(ChoiceKind.Cards));
+            Assert.That(choice.Kind, Is.EqualTo(ChoiceKind.HandCards));
             Assert.That(choice.Min, Is.EqualTo(2));
             Assert.That(choice.Max, Is.EqualTo(2));
             Assert.That(game.ViewFor(0).Choice.Prompt, Does.Contain("discard 2"));

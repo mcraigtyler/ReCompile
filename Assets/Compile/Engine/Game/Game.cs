@@ -9,8 +9,8 @@ namespace Compile.Engine
     // forward until it needs input again: a player's action, or an answer to a PendingChoice. It never
     // blocks or waits, so the same engine serves hot-seat play, the network host, tests, and bots.
     //
-    // Work is a stack of steps (last in, first out), which is also how card effects will interrupt each
-    // other in Phase 5. Cards are text-less for now: they have Protocols and values but no effects.
+    // Work is a stack of steps (last in, first out), which is also how card text interrupts other text.
+    // Card text comes from a CardEffects registry (see Game.Effects.cs); with none, cards are text-less.
     public sealed partial class Game
     {
         public const int HandSize = 5;
@@ -19,61 +19,90 @@ namespace Compile.Engine
         const int QuietTurnsForStalemate = 2;
 
         readonly CardCatalog _catalog;
+        readonly Func<Game, GameState> _setup;      // builds the starting state (and queues the first steps)
         readonly Stack<Action> _steps = new Stack<Action>();
         readonly List<GameEvent> _history = new List<GameEvent>();
+        readonly List<Intent> _log = new List<Intent>();     // every accepted intent, for undo by replay
         List<GameEvent> _current = new List<GameEvent>();
         bool _awaitingAction;
+        bool _awaitingEndTurn;
+        int _draftConfirmSeat = -1;     // a player who has made their picks for this round and must confirm them
         bool _actedThisTurn;
         int _quietTurns;
+        int _undoFloor;             // intents before this index in _log can't be undone
+        string _undoBlockedBy;      // why, when the floor was raised by something the player saw
 
-        public GameState State { get; }
+        public GameState State { get; private set; }
         public PendingChoice Pending { get; private set; }
         public IReadOnlyList<GameEvent> History => _history;
+
+        // With this on (the default), a turn doesn't pass until the player sends EndTurn, so the whole
+        // turn can be undone until then. Rule tests turn it off so turns flow straight on.
+        public bool ConfirmEndTurn { get; }
 
         // The active player is free to Play or Refresh.
         public bool AwaitingAction => State.Stage == GameStage.Playing && _awaitingAction && Pending == null;
 
-        Game(CardCatalog catalog, GameState state)
+        // The active player's turn is over and waits for EndTurn.
+        public bool AwaitingEndTurn => State.Stage == GameStage.Playing && _awaitingEndTurn && Pending == null;
+
+        // In the draft: the seat whose picks for this round are made and wait to be confirmed (EndTurn), or -1.
+        public int DraftConfirmSeat => State.Stage == GameStage.Draft ? _draftConfirmSeat : -1;
+
+        // In the draft: whose move it is (picking, or confirming their picks).
+        public int DraftSeat => DraftConfirmSeat >= 0 ? DraftConfirmSeat : State.Draft?.CurrentSeat ?? -1;
+
+        Game(CardCatalog catalog, Func<Game, GameState> setup, bool confirmEndTurn, CardEffects effects)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-            State = state;
+            _effects = effects ?? CardEffects.None;
+            _setup = setup;
+            ConfirmEndTurn = confirmEndTurn;
+            State = setup(this);
+            Run();
         }
 
         // ---------- Creating games ----------
 
         // A new game that starts with the Protocol draft (1-2-2-1) from the given pool.
         public static Game Create(CardCatalog catalog, IEnumerable<string> pool, int firstSeat, long seed,
-            string name0 = "Player 1", string name1 = "Player 2")
+            string name0 = "Player 1", string name1 = "Player 2", bool confirmEndTurn = true, CardEffects effects = null)
         {
-            var state = new GameState(seed, name0, name1)
+            var protocols = pool.ToList();
+            return new Game(catalog, _ => new GameState(seed, name0, name1)
             {
                 Stage = GameStage.Draft,
-                Draft = new Draft(pool, firstSeat),
+                Draft = new Draft(protocols, firstSeat),
                 FirstSeat = firstSeat,
-            };
-            return new Game(catalog, state);
+            }, confirmEndTurn, effects);
         }
 
         // A new game with the Protocols already chosen (each list left to right from that player's seat).
         public static Game CreateDrafted(CardCatalog catalog, IReadOnlyList<string> protocols0, IReadOnlyList<string> protocols1,
-            int firstSeat, long seed, string name0 = "Player 1", string name1 = "Player 2")
+            int firstSeat, long seed, string name0 = "Player 1", string name1 = "Player 2", bool confirmEndTurn = true,
+            CardEffects effects = null)
         {
-            var state = new GameState(seed, name0, name1) { FirstSeat = firstSeat };
-            var game = new Game(catalog, state);
-            game.StartGame(protocols0, protocols1);
-            game.Run();
-            return game;
+            return new Game(catalog, game =>
+            {
+                game.State = new GameState(seed, name0, name1) { FirstSeat = firstSeat };
+                game.StartGame(protocols0, protocols1);
+                return game.State;
+            }, confirmEndTurn, effects);
         }
 
         // Resumes a game from a hand-built state (used by tests). The state's phase says where to pick up:
-        // Action waits for the active player; any other phase runs from the start of that phase.
-        internal static Game Resume(CardCatalog catalog, GameState state)
+        // Action waits for the active player; any other phase runs from the start of that phase. The
+        // factory is called again whenever an undo replays the game, so it must build the same state each time.
+        internal static Game Resume(CardCatalog catalog, Func<GameState> buildState, bool confirmEndTurn = false, CardEffects effects = null)
         {
-            var game = new Game(catalog, state);
-            state.Stage = GameStage.Playing;
-            game._steps.Push(game.StepFor(state.Phase));
-            game.Run();
-            return game;
+            return new Game(catalog, game =>
+            {
+                var state = buildState();
+                state.Stage = GameStage.Playing;
+                game.State = state;
+                game._steps.Push(game.StepFor(state.Phase));
+                return state;
+            }, confirmEndTurn, effects);
         }
 
         // Events since the game was created or since the last Submit, whichever is later.
@@ -91,11 +120,134 @@ namespace Compile.Engine
             if (intent == null)
                 throw new ArgumentNullException(nameof(intent));
 
+            if (intent is Undo undo)
+            {
+                var undoError = CheckUndo(undo.Seat);
+                if (undoError != null)
+                    return IntentResult.Rejected(undoError);
+                UndoLast();
+                return IntentResult.Ok(TakeEvents());
+            }
+
+            var error = Accept(intent);
+            return error != null ? IntentResult.Rejected(error) : IntentResult.Ok(TakeEvents());
+        }
+
+        // Applies an intent, runs the game on, and records it for undo. Also used when replaying.
+        string Accept(Intent intent)
+        {
+            var firstEvent = _history.Count;
             var error = Apply(intent);
             if (error != null)
-                return IntentResult.Rejected(error);
+                return error;
             Run();
-            return IntentResult.Ok(TakeEvents());
+            _log.Add(intent);
+
+            // Nothing before an undo barrier can be undone: ending the turn, or anything that showed a
+            // player cards they hadn't seen (taking it back would let them peek and then choose again).
+            // The reason is only shown for the player's own moves this turn; a barrier from the turn's start
+            // (the opening deal, or a forced Refresh after the last turn ended) just means "nothing to undo".
+            var ownMove = !(intent is EndTurn) && !(intent is DraftPick) && intent.Seat == State.ActiveSeat;
+            if (intent is EndTurn || intent is Concede || State.Stage == GameStage.Over)
+                RaiseUndoFloor(null);
+            for (var i = firstEvent; i < _history.Count; i++)
+            {
+                var blockedBy = UndoBarrier(_history[i]);
+                if (blockedBy != null)
+                    RaiseUndoFloor(ownMove ? blockedBy : null);
+            }
+            // The opponent's answers to questions during this turn are theirs, not the active player's to take back.
+            if (State.Stage == GameStage.Playing && intent.Seat != State.ActiveSeat && !(intent is Concede))
+                RaiseUndoFloor("Your opponent made a choice this turn.");
+            return null;
+        }
+
+        void RaiseUndoFloor(string reason)
+        {
+            _undoFloor = _log.Count;
+            _undoBlockedBy = reason;
+        }
+
+        // Events that showed someone cards they hadn't seen, or used randomness whose result they saw.
+        string UndoBarrier(GameEvent e)
+        {
+            var active = State.ActiveSeat;
+            switch (e)
+            {
+                case CardsDrawn drawn when drawn.Cards.Count > 0:
+                    return drawn.Seat == active ? "You drew cards this turn." : "Your opponent drew cards this turn.";
+                case DeckReshuffled _:
+                    return "A deck was shuffled this turn.";
+                case CardTaken taken when taken.Card != null:
+                    return taken.Seat == active ? "You drew from your opponent's deck this turn." : "Your opponent drew from your deck this turn.";
+                case CardPlayed played when played.FromDeck:
+                    return "A card was played from the top of a deck this turn.";
+                case CardsRevealed _:
+                    return "Cards were revealed this turn.";
+                case HandCardsTaken _:
+                    return "A card was taken at random this turn.";
+                default:
+                    return null;
+            }
+        }
+
+        // ---------- Undo ----------
+
+        // Why this player can't undo now, or null if they can.
+        public string CheckUndo(int seat)
+        {
+            if (State.Stage == GameStage.Over)
+                return "There's nothing to undo.";
+            if (seat != (State.Stage == GameStage.Draft ? DraftSeat : State.ActiveSeat))
+                return "Only the player whose turn it is can undo.";
+            if (_log.Count > _undoFloor)
+                return null;
+            return _undoBlockedBy ?? "There's nothing to undo this turn.";
+        }
+
+        // Takes back the last decision by rebuilding the game from the start and replaying every accepted
+        // intent but the last. The engine is deterministic (seeded shuffles, ids, and bots' choices come in
+        // as intents), so the replay ends in exactly the state before that decision.
+        void UndoLast()
+        {
+            var undone = _log[_log.Count - 1];
+            var replay = _log.Take(_log.Count - 1).ToList();
+
+            _steps.Clear();
+            _history.Clear();
+            _log.Clear();
+            Pending = null;
+            _awaitingAction = _awaitingEndTurn = _actedThisTurn = false;
+            _draftConfirmSeat = -1;
+            _quietTurns = 0;
+            _undoFloor = 0;
+            _undoBlockedBy = null;
+            State = _setup(this);
+            Run();
+            foreach (var intent in replay)
+            {
+                var error = Accept(intent);
+                if (error != null)
+                    throw new InvalidOperationException($"Undo replay diverged at {intent.GetType().Name}: {error}");
+            }
+
+            _current = new List<GameEvent>();
+            Emit(new MoveUndone(undone.Seat, Describe(undone)));
+        }
+
+        static string Describe(Intent intent)
+        {
+            switch (intent)
+            {
+                case DraftPick pick: return $"drafting {pick.Protocol}";
+                case PlayCard _: return "a play";
+                case DebugEffect d: return $"a debug effect ({DebugEffects.Label(d.Key)})";
+                case Refresh _: return "a refresh";
+                case Rearrange _: return "a rearrange";
+                case AnswerChoice a when a.Decline: return "a skipped choice";
+                case AnswerChoice _: return "a choice";
+                default: return "a move";
+            }
         }
 
         string Apply(Intent intent)
@@ -112,10 +264,35 @@ namespace Compile.Engine
             }
 
             if (State.Stage == GameStage.Draft)
-                return intent is DraftPick pick ? ApplyDraftPick(pick) : "The draft isn't finished.";
+            {
+                switch (intent)
+                {
+                    case DraftPick pick:
+                        return ApplyDraftPick(pick);
+                    case EndTurn _:
+                        return ConfirmDraftPicks(intent.Seat);
+                    default:
+                        return "The draft isn't finished.";
+                }
+            }
 
             if (Pending != null)
                 return ApplyAnswer(intent);
+
+            if (intent is DebugEffect debug)
+                return ApplyDebugEffect(debug);
+
+            if (intent is EndTurn)
+            {
+                if (!_awaitingEndTurn)
+                    return "Your turn isn't over yet.";
+                if (intent.Seat != State.ActiveSeat)
+                    return "It's not your turn.";
+                _awaitingEndTurn = false;
+                return null;
+            }
+            if (_awaitingEndTurn)
+                return intent.Seat == State.ActiveSeat ? "Your turn is over: end it, or undo." : "It's not your turn.";
 
             if (!_awaitingAction)
                 return "The game isn't waiting for an action.";
@@ -136,6 +313,8 @@ namespace Compile.Engine
         string ApplyDraftPick(DraftPick pick)
         {
             var draft = State.Draft;
+            if (_draftConfirmSeat >= 0)
+                return pick.Seat == _draftConfirmSeat ? "Confirm your picks, or undo one." : $"Waiting for {State.Players[_draftConfirmSeat].Name} to confirm.";
             if (pick.Seat != draft.CurrentSeat)
                 return "It's not your pick.";
             if (!draft.Available.Contains(pick.Protocol))
@@ -143,8 +322,28 @@ namespace Compile.Engine
 
             var slot = draft.Pick(pick.Protocol);
             Emit(new DraftPicked(pick.Seat, pick.Protocol, slot));
-            if (draft.IsComplete)
-                StartGame(draft.PicksFor(0), draft.PicksFor(1));
+
+            // A round of picks is done when the turn passes (or the draft ends). With turn confirmation on,
+            // the player confirms their picks first, and can undo them until then.
+            if (draft.IsComplete || draft.CurrentSeat != pick.Seat)
+            {
+                if (ConfirmEndTurn)
+                    _draftConfirmSeat = pick.Seat;
+                else if (draft.IsComplete)
+                    StartGame(draft.PicksFor(0), draft.PicksFor(1));
+            }
+            return null;
+        }
+
+        string ConfirmDraftPicks(int seat)
+        {
+            if (_draftConfirmSeat < 0)
+                return "Finish your picks first.";
+            if (seat != _draftConfirmSeat)
+                return "It's not your pick.";
+            _draftConfirmSeat = -1;
+            if (State.Draft.IsComplete)
+                StartGame(State.Draft.PicksFor(0), State.Draft.PicksFor(1));
             return null;
         }
 
@@ -154,46 +353,63 @@ namespace Compile.Engine
             if (intent.Seat != choice.Seat)
                 return $"Waiting for {State.Players[choice.Seat].Name} to choose.";
 
-            AnswerChoice answer = null;
-            Rearrange rearrange = null;
+            var error = CheckAnswer(choice, intent);
+            if (error != null)
+                return error;
+            Pending = null;
+            choice.Resume(intent);
+            return null;
+        }
+
+        static string CheckAnswer(PendingChoice choice, Intent intent)
+        {
             switch (intent)
             {
                 case AnswerChoice a when a.Decline:
-                    if (!choice.Optional)
-                        return "This choice can't be skipped.";
-                    answer = a;
-                    break;
+                    return choice.Optional ? null : "This choice can't be skipped.";
 
-                case AnswerChoice a when choice.Kind == ChoiceKind.Cards:
+                case AnswerChoice a when choice.Kind == ChoiceKind.FieldCards || choice.Kind == ChoiceKind.HandCards:
                     var cards = a.Cards;
                     if (cards.Count < choice.Min || cards.Count > choice.Max)
                         return choice.Min == choice.Max ? $"Choose {choice.Min} card{(choice.Min == 1 ? "" : "s")}." : $"Choose {choice.Min} to {choice.Max} cards.";
                     if (cards.Distinct().Count() != cards.Count || cards.Any(c => !choice.ValidCards.Contains(c)))
                         return "That card can't be chosen.";
-                    answer = a;
-                    break;
+                    return null;
 
                 case AnswerChoice a when choice.Kind == ChoiceKind.Line:
-                    if (!choice.ValidLines.Contains(a.Line))
-                        return "That line can't be chosen.";
-                    answer = a;
-                    break;
+                    return choice.ValidLines.Contains(a.Line) ? null : "That line can't be chosen.";
 
-                case Rearrange r when choice.Kind == ChoiceKind.Rearrange:
+                case AnswerChoice a when choice.Kind == ChoiceKind.Option:
+                    return a.Options.Count == 1 && a.Options[0] >= 0 && a.Options[0] < choice.Options.Count ? null : "Choose one of the options.";
+
+                case AnswerChoice a when choice.Kind == ChoiceKind.Order:
+                    var order = a.Options;
+                    return order.Count == choice.Options.Count && order.Distinct().Count() == order.Count && order.All(i => i >= 0 && i < order.Count)
+                        ? null : "Put every effect in order.";
+
+                case Rearrange r when choice.Kind == ChoiceKind.Rearrange || choice.Kind == ChoiceKind.Swap:
+                    if (choice.TargetSeat >= 0 && r.TargetSeat != choice.TargetSeat)
+                        return choice.TargetSeat == choice.Seat ? "Rearrange your own Protocols." : "Rearrange your opponent's Protocols.";
                     var rearrangeError = CheckRearrange(r);
                     if (rearrangeError != null)
                         return rearrangeError;
-                    rearrange = r;
-                    break;
+                    if (choice.Kind == ChoiceKind.Swap && r.Order.Where((from, to) => from != to).Count() != 2)
+                        return "Swap exactly 2 Protocols.";
+                    return null;
+
+                case PlayCard p when choice.Kind == ChoiceKind.Play:
+                    if (p.FaceUp ? !choice.FaceUpAllowed : !choice.FaceDownAllowed)
+                        return p.FaceUp ? "This card must be played face-down." : "This card must be played face-up.";
+                    return choice.CheckPlay?.Invoke(p);
 
                 default:
                     return $"Answer the current choice first: {choice.Prompt}";
             }
-
-            Pending = null;
-            choice.Resume(answer, rearrange);
-            return null;
         }
+
+        // Why a PlayCard wouldn't answer the current Play choice, or null if it would (for bots and the board).
+        public string CheckChoicePlay(PlayCard play) =>
+            Pending == null || Pending.Kind != ChoiceKind.Play ? "There's no card to play now." : CheckAnswer(Pending, play);
 
         string ApplyPlay(PlayCard play)
         {
@@ -203,16 +419,12 @@ namespace Compile.Engine
 
             var player = State.Players[play.Seat];
             var card = player.HandCards.First(c => c.Id == play.CardId);
-            var fieldLine = GameState.ToField(play.Seat, play.Line);
             player.HandCards.Remove(card);
-            card.FaceUp = play.FaceUp;
-            State.Lines[fieldLine].StackCards[play.Seat].Add(card);
-            Emit(new CardPlayed(play.Seat, new CardRef(card), fieldLine, play.FaceUp));
 
             _awaitingAction = false;
             _actedThisTurn = true;
             Push(CacheStep);
-            // Phase 5: a face-up card's middle text resolves here, before Check Cache.
+            PlayToField(null, card, play.Seat, GameState.ToField(play.Seat, play.Line), play.FaceUp, fromDeck: false);
             return null;
         }
 
@@ -229,24 +441,31 @@ namespace Compile.Engine
             return null;
         }
 
-        // ---------- Rule queries (Phase 5 persistent effects will hook in here) ----------
+        // Runs a debug effect as if card text said it, then goes back to waiting where the player was.
+        string ApplyDebugEffect(DebugEffect debug)
+        {
+            if (!_awaitingAction && !_awaitingEndTurn)
+                return "Debug effects can only be used in your Action step or after it.";
+            if (debug.Seat != State.ActiveSeat)
+                return "It's not your turn.";
+            var text = DebugEffects.Find(debug.Key);
+            if (text == null)
+                return $"There's no debug effect \"{debug.Key}\".";
+
+            if (_awaitingAction)
+                Push(ActionStep);       // looks again: the effect may have emptied the hand
+            else
+                Push(() => _awaitingEndTurn = true);
+            _awaitingAction = _awaitingEndTurn = false;
+            Emit(new DebugEffectUsed(debug.Seat, DebugEffects.Label(debug.Key)));
+            var effect = new Effect(this, debug.Seat, null, Slot.Middle);
+            RunText(effect, text(effect));
+            return null;
+        }
+
+        // ---------- Rule queries (the ones card text can change are in Game.Effects.cs) ----------
 
         public CardSpec Spec(string cardId) => _catalog.Get(cardId);
-
-        public int CardValue(CardInstance card) => card.FaceUp ? card.Spec.Value : FaceDownValue;
-
-        public int LineValue(int seat, int fieldLine) => State.Lines[fieldLine].StackCards[seat].Sum(CardValue);
-
-        // Face-up cards go into a line where either player's Protocol matches theirs.
-        public bool CanPlayFaceUp(int seat, CardInstance card, int fieldLine) =>
-            State.ProtocolIn(seat, fieldLine).Name == card.Spec.Protocol ||
-            State.ProtocolIn(GameState.Other(seat), fieldLine).Name == card.Spec.Protocol;
-
-        public bool CanCompile(int seat, int fieldLine)
-        {
-            var value = LineValue(seat, fieldLine);
-            return value >= CompileThreshold && value > LineValue(GameState.Other(seat), fieldLine);
-        }
 
         public int LinesLeading(int seat) =>
             Enumerable.Range(0, GameState.LineCount).Count(l => LineValue(seat, l) > LineValue(GameState.Other(seat), l));
@@ -264,9 +483,7 @@ namespace Compile.Engine
                 return "That card isn't in your hand.";
             if (line < 0 || line >= GameState.LineCount)
                 return "There's no such line.";
-            if (faceUp && !CanPlayFaceUp(seat, card, GameState.ToField(seat, line)))
-                return $"{card.Spec.Protocol} cards can only be played face-up into a line with a {card.Spec.Protocol} Protocol.";
-            return null;
+            return CheckPlacement(seat, card, GameState.ToField(seat, line), faceUp);
         }
 
         // Why this player can't refresh now, or null if they can.
@@ -274,6 +491,12 @@ namespace Compile.Engine
         {
             if (!AwaitingAction || seat != State.ActiveSeat)
                 return "You can only refresh in your Action step.";
+            return RefreshBlocked(seat);
+        }
+
+        // Why this player couldn't refresh as their action, whenever it is.
+        string RefreshBlocked(int seat)
+        {
             if (State.Players[seat].HandCards.Count >= HandSize)
                 return $"You can only refresh with fewer than {HandSize} cards in hand.";
             // House ruling: a Refresh that couldn't draw anything isn't allowed (see rules.md).
@@ -282,7 +505,7 @@ namespace Compile.Engine
             return null;
         }
 
-        string CheckRearrange(Rearrange r)
+        static string CheckRearrange(Rearrange r)
         {
             if (r.TargetSeat != 0 && r.TargetSeat != 1)
                 return "Choose whose Protocols to rearrange.";

@@ -202,7 +202,7 @@ namespace Compile.Engine.Tests
                 turn 0 Start");
 
             // 5 cards plus the taken one: Clear Cache.
-            Assert.That(game.Pending.Kind, Is.EqualTo(ChoiceKind.Cards));
+            Assert.That(game.Pending.Kind, Is.EqualTo(ChoiceKind.HandCards));
             Assert.That(game.Pending.Min, Is.EqualTo(1));
             game.Do(AnswerChoice.WithCards(0, game.IdOf("Metal_5")));
             Assert.That(game.State.Players[0].Trash.Names(), Does.Contain("Metal_5"));

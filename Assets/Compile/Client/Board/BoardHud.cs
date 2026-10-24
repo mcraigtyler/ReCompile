@@ -27,13 +27,19 @@ namespace Compile.Client.Board
         CanvasGroup _localBoxGroup;
         TextMeshProUGUI _localText;
         RectTransform _actions;
-        ButtonSkin _faceUp, _faceDown, _refresh, _zoom;
+        ButtonSkin _faceUp, _faceDown, _refresh, _zoom, _undo, _endTurn;
+        TextMeshProUGUI _undoHint;
+        RectTransform _handoff;
+        TextMeshProUGUI _handoffTitle;
+        ButtonSkin _handoffButton;
+        UnityAction _handoffReady;
         RectTransform _log;
         TextMeshProUGUI _logText;
         ButtonSkin _logToggle;
         RectTransform _prompt;
         TextMeshProUGUI _promptText;
-        RectTransform _promptButtons;
+        RectTransform _promptButtons;       // the row (tall screens) or column (the narrow wide-screen panel) in use
+        RectTransform _promptRow, _promptColumn;
         RectTransform _topRight;
         RectTransform _debugMenu;
         RectTransform _trashBrowser;
@@ -48,7 +54,7 @@ namespace Compile.Client.Board
         // Tall screens use two thin strips instead of corner boxes, so the board stays visible.
         RectTransform _tallTop, _tallBottom;
         TextMeshProUGUI _tallOpponentText, _tallLocalText;
-        ButtonSkin _tallFaceUp, _tallFaceDown, _tallRefresh, _tallLogToggle;
+        ButtonSkin _tallFaceUp, _tallFaceDown, _tallRefresh, _tallLogToggle, _tallUndo, _tallEndTurn;
 
         public bool Wide => _wide;
 
@@ -58,6 +64,8 @@ namespace Compile.Client.Board
         public event Action<bool> OrientationChosen;   // true = face-up
         public event Action RefreshPressed;
         public event Action ZoomPressed;
+        public event Action UndoPressed;
+        public event Action EndTurnPressed;
         public event Action<bool> TrashPressed;        // true = local
 
         public static BoardHud Create(RectTransform hudRoot, CardArtLibrary art, Theme theme)
@@ -106,6 +114,13 @@ namespace Compile.Client.Board
             foreach (var b in new[] { _faceUp, _faceDown })
                 b.Label.fontSize = 28f;
             _refresh = Ui.Button(_actions, "Refresh", ButtonStyle.Secondary, () => RefreshPressed?.Invoke());
+            var turn = Ui.Row(_actions, 12f, "Turn");
+            _undo = Ui.Button(turn, "Undo", ButtonStyle.Secondary, () => UndoPressed?.Invoke());
+            _endTurn = Ui.Button(turn, "End turn", ButtonStyle.Primary, () => EndTurnPressed?.Invoke());
+            foreach (var b in new[] { _undo, _endTurn })
+                b.Label.fontSize = 28f;
+            _undoHint = Ui.Text(_actions, "", TextStyle.Small, TextAlignmentOptions.Center);
+            _undoHint.fontSize = 22f;
             _zoom = Ui.Button(_actions, "Zoom", ButtonStyle.Quiet, () => ZoomPressed?.Invoke());
 
             _topRight = Ui.Rect("TopRight", _root);
@@ -132,7 +147,10 @@ namespace Compile.Client.Board
             Fit(_prompt);
             _promptText = Ui.Text(_prompt, "", TextStyle.Heading);
             _promptText.fontSize = 36f;
-            _promptButtons = Ui.Row(_prompt, 12f, "PromptButtons");
+            _promptRow = Ui.Row(_prompt, 12f, "PromptButtons");
+            _promptColumn = Ui.Rect("PromptButtonColumn", _prompt);
+            Ui.VStack(_promptColumn, 10f);
+            _promptButtons = _promptRow;
             _prompt.gameObject.SetActive(false);
 
             // Card text for the hovered or selected card, docked under the prompt.
@@ -143,6 +161,7 @@ namespace Compile.Client.Board
             Hand = HandView.Create(_root, _art, _theme);
 
             BuildTrashBrowser();
+            BuildHandoff();
             Layout(Screen.width >= Screen.height);
         }
 
@@ -159,7 +178,9 @@ namespace Compile.Client.Board
             _tallFaceUp = Ui.Button(_tallBottom, "Face-up", ButtonStyle.Secondary, () => OrientationChosen?.Invoke(true));
             _tallFaceDown = Ui.Button(_tallBottom, "Face-down", ButtonStyle.Secondary, () => OrientationChosen?.Invoke(false));
             _tallRefresh = Ui.Button(_tallBottom, "Refresh", ButtonStyle.Secondary, () => RefreshPressed?.Invoke());
-            foreach (var b in new[] { _tallFaceUp, _tallFaceDown, _tallRefresh })
+            _tallUndo = Ui.Button(_tallBottom, "Undo", ButtonStyle.Secondary, () => UndoPressed?.Invoke());
+            _tallEndTurn = Ui.Button(_tallBottom, "End turn", ButtonStyle.Primary, () => EndTurnPressed?.Invoke());
+            foreach (var b in new[] { _tallFaceUp, _tallFaceDown, _tallRefresh, _tallUndo, _tallEndTurn })
             {
                 b.Label.fontSize = 26f;
                 Ui.Size(b, width: 175f, height: 84f);
@@ -235,7 +256,8 @@ namespace Compile.Client.Board
                                   $"<color=#A397BA>Deck</color> {view.Local.DeckCount}  <color=#A397BA>Trash</color> {view.Local.Trash.Count}";
 
             var log = new StringBuilder();
-            foreach (var entry in view.Log.Skip(Math.Max(0, view.Log.Count - 6)))
+            var shown = _wide ? 4 : 8;      // on wide screens the log shares the right side with the actions
+            foreach (var entry in view.Log.Skip(Math.Max(0, view.Log.Count - shown)))
                 log.Append(entry.Local ? "<color=#ECE6F7>" : "<color=#BFF4F4>").Append("• ").Append(entry.Text).Append("</color>\n");
             _logText.text = log.ToString().TrimEnd();
 
@@ -243,6 +265,22 @@ namespace Compile.Client.Board
         }
 
         static string ControlTag(bool holds) => holds ? "  <color=#7CF2C4>· CONTROL</color>" : "";
+
+        // Undo and End turn. On tall screens they take the place of the play buttons once the turn is done.
+        public void SetTurnState(bool canUndo, bool canEndTurn, string undoBlockedReason)
+        {
+            _undo.Interactable = canUndo;
+            _endTurn.Interactable = canEndTurn;
+            _undoHint.text = canUndo || string.IsNullOrEmpty(undoBlockedReason) ? "" : $"<color=#A397BA>Undo: {undoBlockedReason}</color>";
+            _undoHint.gameObject.SetActive(_undoHint.text.Length > 0);
+
+            _tallUndo.Interactable = canUndo;
+            _tallEndTurn.Interactable = canEndTurn;
+            foreach (var b in new[] { _tallFaceUp, _tallFaceDown, _tallRefresh })
+                b.gameObject.SetActive(!canEndTurn);
+            _tallUndo.gameObject.SetActive(canEndTurn);
+            _tallEndTurn.gameObject.SetActive(canEndTurn);
+        }
 
         public void SetActionState(bool hasSelection, bool faceUp, bool canFaceUp, bool canRefresh)
         {
@@ -264,8 +302,18 @@ namespace Compile.Client.Board
         public void ShowPrompt(string text, params (string label, ButtonStyle style, UnityAction action)[] buttons)
         {
             _promptText.text = text;
-            for (var i = _promptButtons.childCount - 1; i >= 0; i--)
-                Destroy(_promptButtons.GetChild(i).gameObject);
+            foreach (var container in new[] { _promptRow, _promptColumn })
+            {
+                // Detach before destroying: Destroy waits for the end of the frame, and PromptButton counts children.
+                for (var i = container.childCount - 1; i >= 0; i--)
+                {
+                    var child = container.GetChild(i);
+                    child.SetParent(null, false);
+                    Destroy(child.gameObject);
+                }
+                container.gameObject.SetActive(false);
+            }
+            _promptButtons = _wide && buttons.Length > 1 ? _promptColumn : _promptRow;
             _promptButtons.gameObject.SetActive(buttons.Length > 0);
             foreach (var (label, style, action) in buttons)
                 Ui.Button(_promptButtons, label, style, action).Label.fontSize = 30f;
@@ -277,6 +325,42 @@ namespace Compile.Client.Board
             index < _promptButtons.childCount ? _promptButtons.GetChild(index).GetComponent<ButtonSkin>() : null;
 
         public void HidePrompt() => _prompt.gameObject.SetActive(false);
+
+        // ---------- Pass the screen (hot-seat) ----------
+
+        // Covers everything (hand included) until the named player is at the screen.
+        void BuildHandoff()
+        {
+            _handoff = Ui.Rect("Handoff", _root);
+            Ui.Stretch(_handoff);
+            _handoff.gameObject.AddComponent<UnityEngine.UI.Image>().color = new Color(0.05f, 0.03f, 0.09f, 1f);   // opaque: nothing of the last hand shows
+
+            var panel = Ui.Rect("Panel", _handoff);
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.sizeDelta = new Vector2(820f, 0f);
+            Ui.Backdrop(panel, Palette.PanelFill, Palette.Accent);
+            Ui.VStack(panel, 24f, padX: 56, padY: 48);
+            Fit(panel);
+            Ui.Text(panel, ":\\> handoff", TextStyle.Label, TextAlignmentOptions.Center);
+            _handoffTitle = Ui.Text(panel, "", TextStyle.Title, TextAlignmentOptions.Center);
+            _handoffTitle.fontSize = 72f;
+            Ui.Text(panel, "Your hand stays hidden until you're ready.", TextStyle.Body, TextAlignmentOptions.Center);
+            _handoffButton = Ui.Button(panel, "", ButtonStyle.Primary, () => _handoffReady?.Invoke());
+            _handoff.gameObject.SetActive(false);
+        }
+
+        public bool HandoffShown => _handoff.gameObject.activeSelf;
+
+        public void ShowHandoff(string name, UnityAction onReady)
+        {
+            _handoffTitle.text = $"Pass to {name}";
+            _handoffButton.SetLabel($"I'm {name}: show my hand");
+            _handoffReady = onReady;
+            _handoff.gameObject.SetActive(true);
+            _handoff.SetAsLastSibling();
+        }
+
+        public void HideHandoff() => _handoff.gameObject.SetActive(false);
 
         // ---------- Debug menu ----------
 
@@ -425,6 +509,9 @@ namespace Compile.Client.Board
         // opponent's lanes) on tall ones. Placed every frame because the boxes around them change height.
         void LateUpdate()
         {
+            if (_handoff.gameObject.activeSelf && _handoff.GetSiblingIndex() != _root.childCount - 1)
+                _handoff.SetAsLastSibling();    // nothing may show over the pass screen
+
             var rootHeight = _root.rect.height;
             Vector2 anchor;
             float x, top, bottom, stretchBottom, width;

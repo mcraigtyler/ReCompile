@@ -10,6 +10,7 @@ namespace Compile.Client.Screens
         TMP_InputField _name;
         ButtonSkin _host;
         ButtonSkin _join;
+        ButtonSkin _local;
 
         string EnteredName => _name.text.Trim();
 
@@ -29,10 +30,11 @@ namespace Compile.Client.Screens
             var row = Ui.Row(panel, 24f);
             _host = Ui.Button(row, "Host game", ButtonStyle.Primary, () => Continue(new HostScreen()));
             _join = Ui.Button(row, "Join game", ButtonStyle.Secondary, () => Continue(new JoinScreen()));
+            _local = Ui.Button(panel, "Local game (two players, one screen)", ButtonStyle.Secondary, () => Continue(new LocalGameScreen()));
 
             Ui.Button(panel, "How to play", ButtonStyle.Quiet, () => App.Nav.Go(new RulesScreen()));
 
-            var version = Ui.Text(panel, $"v{Application.version} · offline preview: opponents are simulated",
+            var version = Ui.Text(panel, $"v{Application.version} · offline preview: online opponents are simulated",
                 TextStyle.Small, TextAlignmentOptions.Center);
             version.fontSize = 24f;
 
@@ -44,6 +46,7 @@ namespace Compile.Client.Screens
             var valid = EnteredName.Length > 0;
             _host.Interactable = valid;
             _join.Interactable = valid;
+            _local.Interactable = valid;
         }
 
         void SaveName()

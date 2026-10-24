@@ -2,7 +2,7 @@
 
 A browser version of **Compile**, the two-player card game by Michael Yang (Greater Than Games). Two players meet with a room code, draft Protocols, and race to compile all three. Built with Unity 6 for WebGL, playable on desktop browsers and large tablets.
 
-> **Status: Phase 1 (setup screens).** All menus, the Protocol draft, and the result screen work against a simulated opponent. The game board, rules engine, and real online play come in later phases. See [`docs/plan.md`](docs/plan.md).
+> **Status: Phase 4b (effects engine).** Two people can play a full game of Compile at one screen, or one person can play against a random stand-in opponent. The engine can now run every kind of card effect (flip, shift, delete, return, reveal, play, give and take, swap, and every kind of question they ask), but no card has its text yet: the board UI for effects is Phase 4c, and the 72 Main Set 1 cards are Phase 5. Online play comes in Phase 6. See [`docs/plan.md`](docs/plan.md).
 
 ## Requirements
 
@@ -21,14 +21,15 @@ The scene contains only an `App` object. Everything else (the desk, play mat, ca
 
 ### Trying the offline preview
 
-Opponents are simulated, so you can test every screen alone:
-
 | To see | Do this |
 |---|---|
-| A full game flow | **Host game** → wait about 3 s for the opponent → **I'm ready** → **Start** → draft → **Simulate win** or **Simulate loss** → **Rematch** |
+| A hot-seat game | **Local game** → enter both names → **Start** → take turns drafting (press **Confirm** after your picks) → play. After each turn press **End turn**, then hand over the screen: the next player presses **I'm …: show my hand** |
+| A game against the stand-in opponent | **Host game** → wait about 3 s for the opponent → **I'm ready** → **Start** → draft → play. The opponent makes random legal moves |
+| Undo | Make a move, then **Undo** (or Ctrl+Z). You can undo every move in your turn until you press **End turn**, except after drawing cards. In the draft, undo a pick until you press **Confirm** |
+| Skipping ahead | **Debug → Auto-play your turn** makes random moves for you; **Concede** ends the game |
 | Joining a room | **Join game** with any 6-character code |
 | Join errors | Codes starting with **X** show "Room not found"; codes starting with **F** show "Room is full" |
-| An opponent disconnecting | **Opponent leaves** on the board preview |
+| An opponent disconnecting | **Debug → Opponent leaves** on the board (games against the stand-in opponent) |
 | Wide and tall layouts | Resize the Game view or use a portrait resolution; the camera re-fits each screen |
 
 ## Build and run the WebGL version
@@ -78,7 +79,7 @@ Supported screens are desktops and tablets whose shorter side is at least 768 CS
   unity test . --mode EditMode
   ```
 
-Tests cover the card data, the Protocol draft order, the simulated session service, and room code validation.
+Tests cover the card data, the rules engine (setup, the turn, Control, compiling, hidden information, undo, and the card-effects framework), the simulated session service, and room code validation. Fuzz tests play 200 random games, checking the rules after every move: one without card text, and one where every card gets random text built from the debug effects. `Fuzz_10000RandomGames` and `Fuzz_10000RandomGamesWithEffects` run 10,000 each when you ask for them by name.
 
 ## Project layout
 

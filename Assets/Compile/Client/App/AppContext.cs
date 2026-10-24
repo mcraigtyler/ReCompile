@@ -1,4 +1,5 @@
 using Compile.Client.Cards;
+using Compile.Engine;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine.Cards;
@@ -13,6 +14,7 @@ namespace Compile.Client.App
         public Theme Theme;
         public CardArtLibrary Art;
         public CardDatabase Cards;
+        public CardCatalog Catalog;         // the cards as the rules engine sees them
         public string RulesText;
 
         public ISessionService Session;
@@ -32,13 +34,19 @@ namespace Compile.Client.App
     public sealed class MatchInfo
     {
         public MatchStart Start { get; }
-        public int WinnerSeat { get; set; } = -1;
+        public bool Hotseat { get; }                // two people at one screen
+        public int WinnerSeat { get; set; } = -1;   // -1 for a draw
+        public EndReason EndReason { get; set; }
+        public MatchController Controller { get; set; }   // created by the draft
 
-        // Each player's drafted Protocols in their own left → right order, set when the draft finishes.
-        public string[] LocalProtocols { get; set; }
-        public string[] OpponentProtocols { get; set; }
+        public MatchInfo(MatchStart start, bool hotseat = false)
+        {
+            Start = start;
+            Hotseat = hotseat;
+        }
 
-        public MatchInfo(MatchStart start) => Start = start;
+        // Names by seat (the local player's MatchStart seat is "local"; in hot-seat that's seat 0).
+        public string SeatName(int seat) => IsLocal(seat) ? Start.LocalName : Start.OpponentName;
 
         public bool LocalWon => WinnerSeat == Start.LocalSeat;
         public bool IsLocal(int seat) => seat == Start.LocalSeat;

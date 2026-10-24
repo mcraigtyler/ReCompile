@@ -11,14 +11,26 @@ namespace Compile.Engine
         // Runs steps until the game needs a player's input or ends.
         void Run()
         {
-            while (State.Stage == GameStage.Playing && Pending == null && !_awaitingAction && _steps.Count > 0)
+            var steps = 0;
+            while (State.Stage == GameStage.Playing && Pending == null && !_awaitingAction && !_awaitingEndTurn && _steps.Count > 0)
+            {
+                // Card text that sets itself off forever without asking anything would hang the game.
+                if (++steps > MaxStepsPerRun)
+                    throw new InvalidOperationException("Card effects are looping without end.");
                 _steps.Pop()();
+            }
         }
 
         void Push(Action step) => _steps.Push(step);
 
-        // Asks a player something; the engine stops until they answer.
-        void Ask(PendingChoice choice) => Pending = choice;
+        // Asks a player something; the engine stops until they answer. A step asks at most one question,
+        // as the last thing it does.
+        void Ask(PendingChoice choice)
+        {
+            if (Pending != null)
+                throw new InvalidOperationException($"Asked \"{choice.Prompt}\" while \"{Pending.Prompt}\" was waiting.");
+            Pending = choice;
+        }
 
         Action StepFor(TurnPhase phase)
         {
@@ -77,8 +89,8 @@ namespace Compile.Engine
         {
             Emit(new TurnStarted(State.ActiveSeat, State.Turn));
             SetPhase(TurnPhase.Start);
-            // Phase 5: queue the Start effects visible now (the owner picks their order) and resolve them.
             Push(ControlStep);
+            PushPhaseTriggers(Trigger.Start);
         }
 
         // Leading in at least 2 lines takes Control, from neutral or from the opponent.
@@ -115,19 +127,29 @@ namespace Compile.Engine
             }
 
             Ask(new PendingChoice(seat, ChoiceKind.Line, "Choose a line to compile",
-                null, lines.Select(l => GameState.ToLocal(seat, l)).ToList(), 1, 1, optional: false,
-                (answer, _) => Push(() => CompileLine(seat, GameState.ToField(seat, answer.Line)))));
+                answer => Push(() => CompileLine(seat, GameState.ToField(seat, ((AnswerChoice)answer).Line))))
+            {
+                ValidLines = lines.Select(l => GameState.ToLocal(seat, l)).ToList(),
+                Purpose = LinePurpose.Compile,
+            });
         }
 
         // Waits for Play or Refresh, except: with no cards in hand the player must Refresh, and if they
-        // can't draw either, the Action step is skipped.
+        // can't draw either, the Action step is skipped. (Card text can forbid plays, so a hand of cards
+        // that can't go anywhere, with no Refresh possible, skips it too.)
         void ActionStep()
         {
             SetPhase(TurnPhase.Action);
             var seat = State.ActiveSeat;
             if (State.Players[seat].HandCards.Count > 0)
             {
-                _awaitingAction = true;
+                if (HasLegalPlay(seat) || RefreshBlocked(seat) == null)
+                {
+                    _awaitingAction = true;
+                    return;
+                }
+                Push(CacheStep);
+                Emit(new ActionSkipped(seat));
                 return;
             }
 
@@ -152,19 +174,31 @@ namespace Compile.Engine
 
             var hand = State.Players[seat].HandCards;
             var excess = hand.Count - HandSize;
-            if (excess <= 0)
+            if (excess <= 0 || SkipsCheckCache(seat))
                 return;
 
-            Ask(new PendingChoice(seat, ChoiceKind.Cards, $"Clear cache: discard {excess} card{(excess == 1 ? "" : "s")}",
-                hand.Select(c => c.Id).ToList(), null, excess, excess, optional: false,
-                (answer, _) => Discard(seat, answer.Cards)));
+            Ask(new PendingChoice(seat, ChoiceKind.HandCards, $"Clear cache: discard {excess} card{(excess == 1 ? "" : "s")}", answer =>
+            {
+                FireTrigger(Trigger.AfterClearCache, seat);
+                Discard(seat, ((AnswerChoice)answer).Cards);
+            })
+            {
+                ValidCards = hand.Select(c => c.Id).ToList(),
+                Min = excess,
+                Max = excess,
+            });
         }
 
         void EndStep()
         {
             SetPhase(TurnPhase.End);
-            // Phase 5: queue the End effects visible now and resolve them.
             Push(NextTurnStep);
+            Push(() =>
+            {
+                if (ConfirmEndTurn)
+                    _awaitingEndTurn = true;
+            });
+            PushPhaseTriggers(Trigger.End);
         }
 
         void NextTurnStep()
@@ -196,41 +230,50 @@ namespace Compile.Engine
         }
 
         // Compile: Control first, then delete every card in the line at once, then flip the Protocol to
-        // its Compiled side, or on a Recompile draw the opponent's top card.
+        // its Compiled side, or on a Recompile draw the opponent's top card. "When this card would be
+        // deleted by compiling" text resolves just before the delete.
         void CompileLine(int seat, int fieldLine)
         {
             UseControl(seat, () =>
             {
-                var line = State.Lines[fieldLine];
-                var deleted = new List<CardRef>();
-                for (var s = 0; s < GameState.SeatCount; s++)
-                {
-                    foreach (var card in line.StackCards[s])
-                    {
-                        card.FaceUp = true;
-                        State.Players[card.Owner].TrashCards.Add(card);
-                        deleted.Add(new CardRef(card));
-                    }
-                    line.StackCards[s].Clear();
-                }
-
-                // After a rearrange, "your Protocol in that line" may be a different one.
-                var protocol = State.ProtocolIn(seat, fieldLine);
-                var recompile = protocol.Compiled;
-                Emit(new LineCompiled(seat, fieldLine, protocol.Name, recompile));
-                Emit(new CardsDeleted(deleted));
-
-                if (recompile)
-                {
-                    TakeTopCard(seat, GameState.Other(seat));
-                    return;
-                }
-
-                protocol.Compiled = true;
-                Emit(new ProtocolCompiled(seat, protocol.Name));
-                if (State.Players[seat].CompiledCount == PlayerState.ProtocolCount)
-                    End(seat, EndReason.Compiled);
+                Push(() => DeleteAndCompile(seat, fieldLine));
+                var inLine = State.Lines[fieldLine].StackCards.SelectMany(stack => stack).ToList();
+                PushTogether(Collect(Trigger.WouldBeDeletedByCompile, seat, inLine), State.ActiveSeat);
             });
+        }
+
+        void DeleteAndCompile(int seat, int fieldLine)
+        {
+            var line = State.Lines[fieldLine];
+            var deleted = new List<CardRef>();
+            for (var s = 0; s < GameState.SeatCount; s++)
+            {
+                foreach (var card in line.StackCards[s])
+                {
+                    card.FaceUp = true;
+                    card.Changes++;
+                    State.Players[card.Owner].TrashCards.Add(card);
+                    deleted.Add(new CardRef(card));
+                }
+                line.StackCards[s].Clear();
+            }
+
+            // After a rearrange, "your Protocol in that line" may be a different one.
+            var protocol = State.ProtocolIn(seat, fieldLine);
+            var recompile = protocol.Compiled;
+            Emit(new LineCompiled(seat, fieldLine, protocol.Name, recompile));
+            Emit(new CardsDeleted(deleted));
+
+            if (recompile)
+            {
+                TakeTopCard(seat, GameState.Other(seat));
+                return;
+            }
+
+            protocol.Compiled = true;
+            Emit(new ProtocolCompiled(seat, protocol.Name));
+            if (State.Players[seat].CompiledCount == PlayerState.ProtocolCount)
+                End(seat, EndReason.Compiled);
         }
 
         // When the Control holder compiles or refreshes, Control returns to neutral and they may rearrange
@@ -245,14 +288,15 @@ namespace Compile.Engine
 
             State.Control = GameState.Neutral;
             Emit(new ControlChanged(GameState.Neutral));
-            Ask(new PendingChoice(seat, ChoiceKind.Rearrange, "You may rearrange one player's Protocols",
-                null, null, 0, 1, optional: true,
-                (_, rearrange) =>
-                {
-                    if (rearrange != null)
-                        RearrangeProtocols(seat, rearrange.TargetSeat, rearrange.Order);
-                    Push(then);
-                }));
+            Ask(new PendingChoice(seat, ChoiceKind.Rearrange, "You may rearrange one player's Protocols", answer =>
+            {
+                if (answer is Rearrange rearrange)
+                    RearrangeProtocols(seat, rearrange.TargetSeat, rearrange.Order);
+                Push(then);
+            })
+            {
+                Optional = true,
+            });
         }
 
         void RearrangeProtocols(int seat, int target, IReadOnlyList<int> order)
@@ -267,10 +311,12 @@ namespace Compile.Engine
         // ---------- Cards moving ----------
 
         // Draws up to count cards at once, shuffling the trash into a new deck whenever the deck runs out.
-        void Draw(int seat, int count)
+        // "After you draw" text then reacts once, to the whole batch.
+        List<CardInstance> Draw(int seat, int count)
         {
             var player = State.Players[seat];
             var drawn = new List<CardRef>();
+            var cards = new List<CardInstance>();
             for (var i = 0; i < count; i++)
             {
                 if (player.DeckCards.Count == 0 && !Reshuffle(seat))
@@ -279,20 +325,23 @@ namespace Compile.Engine
                 player.DeckCards.RemoveAt(0);
                 ToHand(player, card);
                 drawn.Add(new CardRef(card));
+                cards.Add(card);
             }
             Emit(new CardsDrawn(seat, drawn));
-            // Phase 5: "after you draw" triggers fire once here, for the whole batch.
+            if (cards.Count > 0)
+                FireTrigger(Trigger.AfterDraw, seat);
+            return cards;
         }
 
-        // On a Recompile: draw the top card of the opponent's deck (reshuffling their trash if needed).
-        // The card belongs to the compiling player from now on.
-        void TakeTopCard(int seat, int from)
+        // On a Recompile (or by card text): draw the top card of the opponent's deck (reshuffling their
+        // trash if needed). The card belongs to the drawing player from now on.
+        CardInstance TakeTopCard(int seat, int from)
         {
             var source = State.Players[from];
             if (source.DeckCards.Count == 0 && !Reshuffle(from))
             {
                 Emit(new CardTaken(seat, from, null));
-                return;
+                return null;
             }
 
             var card = source.DeckCards[0];
@@ -300,6 +349,8 @@ namespace Compile.Engine
             card.Owner = seat;
             ToHand(State.Players[seat], card);
             Emit(new CardTaken(seat, from, new CardRef(card)));
+            FireTrigger(Trigger.AfterDraw, seat);
+            return card;
         }
 
         bool Reshuffle(int seat)
@@ -333,7 +384,8 @@ namespace Compile.Engine
                 discarded.Add(new CardRef(card));
             }
             Emit(new CardsDiscarded(seat, discarded));
-            // Phase 5: "after you discard" / "after your opponent discards" triggers fire here.
+            if (discarded.Count > 0)
+                FireTrigger(Trigger.AfterDiscard, seat);
         }
 
         void ToHand(PlayerState player, CardInstance card)
@@ -365,6 +417,7 @@ namespace Compile.Engine
             State.EndReason = reason;
             Pending = null;
             _awaitingAction = false;
+            _awaitingEndTurn = false;
             _steps.Clear();
             Emit(new GameEnded(winner, reason));
         }

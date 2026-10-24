@@ -28,7 +28,13 @@ namespace Compile.Engine.Tests
         public static CardCatalog Catalog => _catalog ?? (_catalog = CardDatabase.Parse(
             File.ReadAllText("Assets/Compile/Data/cards.json"), File.ReadAllText("Assets/Compile/Data/protocols.json")).ToCatalog());
 
-        public static Game Load(string text)
+        // confirmEndTurn: the game waits for EndTurn after each turn (as real games do). Rule tests leave it
+        // off so turns flow straight on.
+        // effects: card text for this game (tests give cards made-up text to exercise the framework).
+        public static Game Load(string text, bool confirmEndTurn = false, CardEffects effects = null) =>
+            Game.Resume(Catalog, () => Build(text), confirmEndTurn, effects);
+
+        static GameState Build(string text)
         {
             var lines = text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")).ToList();
 
@@ -128,7 +134,7 @@ namespace Compile.Engine.Tests
                 }
             }
 
-            return Game.Resume(Catalog, state);
+            return state;
         }
 
         static string[] Words(string text) => text.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
@@ -154,5 +160,15 @@ namespace Compile.Engine.Tests
 
         public static IntentResult Play(this Game game, string cardId, int line, bool faceUp = true) =>
             game.Do(new PlayCard(game.State.ActiveSeat, game.IdOf(cardId), line, faceUp));
+
+        // Sets off a debug effect (DebugEffects) for the active player.
+        public static IntentResult Debug(this Game game, string key) => game.Do(new DebugEffect(game.State.ActiveSeat, key));
+
+        // Answers the pending choice with these cards (by card id), for whoever is choosing.
+        public static IntentResult Pick(this Game game, params string[] cardIds) =>
+            game.Do(AnswerChoice.WithCards(game.Pending.Seat, cardIds.Select(game.IdOf)));
+
+        // The card ids in one player's stack in a field line, bottom to top.
+        public static IReadOnlyList<string> StackOf(this Game game, int fieldLine, int seat) => game.State.Lines[fieldLine].Stack(seat).Names();
     }
 }

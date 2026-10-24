@@ -38,6 +38,8 @@ namespace Compile.Client.App
                 Profile = new PlayerProfile(),
             };
 
+            _app.Catalog = _app.Cards.ToCatalog();
+
             CreateCamera();
             CreateEventSystem();
             CreateTable();

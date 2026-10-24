@@ -114,6 +114,15 @@ namespace Compile.Client.Table
 
         public CardView ProtocolCard(bool local, int index) => _protocols[Seat(local), index];
 
+        // Forgets a card placed in a slot without destroying it (e.g. a draft pick that was undone).
+        public void ReleaseProtocol(CardView card)
+        {
+            for (var seat = 0; seat < 2; seat++)
+            for (var i = 0; i < 3; i++)
+                if (_protocols[seat, i] == card)
+                    _protocols[seat, i] = null;
+        }
+
         // Temporarily shows a Protocol card in another slot (used while rearranging, before it's confirmed).
         public void PreviewProtocolSlot(CardView card, bool local, int index) =>
             card.MoveTo(MatLayout.ProtocolSlot(local, index), MatLayout.ProtocolRotation(local), MatLayout.ProtocolScale, 0.3f);

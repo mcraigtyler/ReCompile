@@ -61,7 +61,7 @@ namespace Compile.Engine.Tests
         public void Draft_PicksGoOneTwoTwoOneThenTheGameStarts()
         {
             var pool = new[] { "Darkness", "Death", "Fire", "Gravity", "Life", "Light", "Metal", "Plague" };
-            var game = Game.Create(Scenario.Catalog, pool, firstSeat: 1, seed: 3);
+            var game = Game.Create(Scenario.Catalog, pool, firstSeat: 1, seed: 3, confirmEndTurn: false);
             Assert.That(game.State.Stage, Is.EqualTo(GameStage.Draft));
 
             Assert.That(game.Submit(new DraftPick(0, "Fire")).Accepted, Is.False, "seat 1 picks first");
@@ -83,7 +83,7 @@ namespace Compile.Engine.Tests
         public void Draft_ViewShowsPicksAndWhoseTurn()
         {
             var pool = new[] { "Darkness", "Death", "Fire", "Gravity", "Life", "Light", "Metal", "Plague" };
-            var game = Game.Create(Scenario.Catalog, pool, firstSeat: 0, seed: 3);
+            var game = Game.Create(Scenario.Catalog, pool, firstSeat: 0, seed: 3, confirmEndTurn: false);
             game.Do(new DraftPick(0, "Fire"));
             var view = game.ViewFor(1);
             Assert.That(view.Stage, Is.EqualTo(GameStage.Draft));

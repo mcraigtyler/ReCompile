@@ -107,6 +107,10 @@ namespace Compile.Client.Board
                 Enumerable.Range(0, 3).Select(i => view.Lines[2 - i].OpponentProtocol.Compiled).ToList());
 
             HookProtocols();
+            // Protocol cards made just now (e.g. when the other hot-seat player takes the screen) were added
+            // after the stacks and line totals; keep those on top.
+            _stackLayer.SetAsLastSibling();
+            _overlayLayer.SetAsLastSibling();
 
             var seen = new HashSet<int>();
             foreach (var line in view.Lines)

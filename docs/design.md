@@ -225,61 +225,87 @@ Compile order: Control return + optional rearrange → delete all cards in the l
 
 ### Effects and triggers
 
-Card text is too varied to describe fully as data, so each card is a small C# class built from shared primitives:
+Card text is too varied to describe fully as data, so each card is a small C# class (a `CardEffect`, registered by card id in a `CardEffects` registry) whose text is an iterator of building blocks, one per sentence:
 
-| Primitive | Notes |
+```csharp
+// Fire 1: "Discard 1 card. If you do, delete 1 card."
+public override IEnumerable<Op> Middle(Effect e)
+{
+    var discard = e.Discard(1);
+    yield return discard;
+    if (discard.Done)
+        yield return e.Delete(Target.Any);
+}
+```
+
+Each yielded `Op` finishes, including any questions it asks and any text it sets off, before the iterator continues. The `Effect` knows the card, its owner (who makes the text's choices), and the building blocks. In code: `Engine/Game/Effects/` and `Game.Effects.cs`.
+
+| Building block | Notes |
 |---|---|
-| `Draw(n)` | Batch draw, reshuffles trash when deck is empty, then fires draw triggers once. |
-| `Discard(n)` | Batch discard from hand (or top of deck), then fires discard triggers once. |
-| `Flip`, `Shift`, `Delete`, `Return`, `Reveal` | Target uncovered cards unless the effect says "covered" or "all". |
-| `PlayFrom(source, orientation)` | Plays from deck top, trash, etc. Does nothing on an empty deck. |
-| `Rearrange(player)` | Must produce a different order. |
-| `Choose(player, filter, min, max, optional)` | Raises a `PendingChoice` and suspends resolution until answered. |
+| `Draw(n)`, `DrawFromOpponentDeck`, `Refresh` | Batch draw (reshuffles the trash when needed), then "after you draw" text reacts once. Refresh uses Control like any Refresh. |
+| `Discard(n)`, `DiscardAny` | The discarding player chooses; "after you discard" text reacts once. |
+| `Flip`, `Shift`, `Delete`, `Return` | Pick from a `Target` (whose, covered, face-up/down, "other", line, any condition), or act on a given card ("that card"). Uncovered cards only unless the target says covered. |
+| `FlipAll`, `ShiftAll`, `DeleteAll`, `ReturnAll` | "All": every matching card at once, covered or not. |
+| `Each`, `EachCard` | "Each": one effect per item, one at a time, in the active player's order. |
+| `RevealField`, `RevealHand`, `RevealFromHand` | Shown to both players until the text finishes, then hidden again (revealed hand cards get new ids). |
+| `PlayFromHand`, `PlayTopOfDeck` | Normal play rules (plus face-down-only or line limits); top-of-deck plays are face-down and do nothing on an empty deck. |
+| `Give`, `TakeRandom` | Chosen or random cards change hands, and owners. |
+| `Rearrange`, `Swap` | One player's Protocols, fixed by the text. |
+| `Choose`, `May`, `ChooseLine` | "Either … or …", "you may …", and "1 line". |
 
 Card text has three slots, matching the card anatomy:
 
 | Slot | Engine hook |
 |---|---|
 | **Top (Persistent)** | Active while face-up, covered or not. Either a rule modifier (e.g. "may play without matching Protocol", "opponent can't compile") or a trigger (Start/End, "when this would be…"). |
-| **Middle (Immediate)** | Runs when played face-up, flipped face-up, or uncovered. |
+| **Middle (Immediate)** | Runs when played face-up, flipped face-up while uncovered, or uncovered while face-up. |
 | **Bottom (Auxiliary)** | Active only while face-up and uncovered. Usually triggers. |
 
-Resolution rules the engine must enforce (from the Codex):
+Triggers (`CardEffect.OnTrigger`): Start and End (the owner's turn), after draw, after discard, after delete, after Clear Cache, and "when this card would be" covered, flipped, or deleted by compiling. Rule modifiers (overridable by persistent text): card value, line value, playing face-up without a match, forbidding a play, forbidding compiling, forbidding a flip, skipping Check Cache, and ignoring middle text. The rule queries the engine asks are `CardValue`, `LineValue`, `CanPlayFaceUp`, `CheckPlacement`, `CanCompile`, and `CanFlip`.
 
-- Effects resolve **last in, first out**. New active text interrupts what is resolving.
-- If the source card is covered, flipped, or removed mid-resolution, its remaining text is cancelled.
-- Each sentence resolves separately; "if you do" clauses check completion; text without "may" is mandatory and resolves as fully as possible.
-- **Committed** cards can't be targeted and always land in their chosen line and orientation. "When this would be covered" triggers fire before the committed card lands.
-- Start/End effects use only what was visible when the phase began.
-- Cards may break rules when their text says so. Model this with rule-modifier queries (`CanPlayFaceUpIn`, `CanCompile`, `ValueOf`) that persistent effects can override.
+Resolution rules the engine enforces (from the Codex):
+
+- Effects resolve **last in, first out**. New active text interrupts what is resolving: it's pushed onto the same step stack as the turn.
+- If the source card is covered, flipped, or removed mid-resolution, its remaining text is cancelled. A shifted card keeps its text.
+- Each sentence resolves separately; "if you do" clauses check `Op.Done`; text without "may" is mandatory and resolves as fully as possible. With no real choice (exactly as many valid cards as must be picked) the engine doesn't ask.
+- **Committed** cards (being played or shifted) are in no stack, so nothing can pick them, and they always land in their chosen line and orientation. "When this would be covered" text on the card underneath resolves before the committed card lands. A shift uncovers the card beneath right away (its text resolves) before the shifted card lands.
+- Start/End effects use only what was visible when the phase began, and are skipped if their card's text is lost before their turn comes.
+- Several texts set off at once resolve in the order the active player picks (Start/End: the owner).
+- "When this card would be …" text can't set itself off again while it's resolving (e.g. by flipping its own card), which would never end.
+- A covered card flipped face-up doesn't run its middle text (covered cards have no active text).
+- Cards may break rules when their text says so, through the rule-modifier queries above.
+- A run that takes more than 100,000 steps without asking anything throws, rather than hanging on text that sets itself off forever.
+
+**Debug effects:** `DebugEffects.All` lists every building block and kind of question as ready-made text (e.g. "Shift 1 of your opponent's covered cards"). A `DebugEffect` intent runs one for the active player during their Action step or after it, without using up the action, so effects can be played and tested before any card has text. The fuzzer gives every card random text made of debug effects.
 
 ### Choices and suspension
 
-The engine never blocks. When a decision is needed it stores a `PendingChoice { Seat, Kind, Prompt, ValidCards, ValidLines, Min, Max, Optional }` and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
+The engine never blocks. When a decision is needed it stores a `PendingChoice` (seat, kind, prompt, valid cards and lines, options, min/max, optional, and for some kinds a target player, line purpose, allowed orientations, and the card asking and the card it's about) and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
 
-| Choice kind | Used for |
-|---|---|
-| `FieldCards` (filter, min/max) | Flip, delete, shift, return, and reveal targets |
-| `HandCards` | Discard, give, choosing a card to play |
-| `Line` (from / to) | Compiling, shift destinations, where to play |
-| `Option` | "Either … or …", and yes/no for "may" |
-| `Rearrange` / `Swap` | Control's rearrange, Water 2, Psychic 2, Spirit 4 |
-| `Order` | Several Start/End effects at once, "each" effects |
+| Choice kind | Used for | Answered with |
+|---|---|---|
+| `FieldCards` (min/max) | Flip, delete, shift, return, and reveal targets | `AnswerChoice.WithCards` |
+| `HandCards` (min/max) | Discard (including Clear Cache), give, reveal from hand | `AnswerChoice.WithCards` |
+| `Line` (purpose: compile, shift to, choose) | Compiling, shift destinations, "1 line" | `AnswerChoice.WithLine` |
+| `Option` | "Either … or …", and "may" (one option, optional) | `AnswerChoice.WithOption` |
+| `Order` | Several texts set off at once, "each" effects | `AnswerChoice.WithOrder` |
+| `Rearrange` / `Swap` (target fixed or chosen) | Control's rearrange, Water 2, Psychic 2, Spirit 4 | `Rearrange` |
+| `Play` (cards, lines, face-up/down allowed) | "Play 1 card" (Speed 0, Darkness 3) | `PlayCard` |
 
-Reveals aren't choices: the engine shows the revealed cards to both players for a moment, then hides them again. Phase 3 has `Cards`, `Line`, and `Rearrange`; the rest arrive in Phase 4.
+Reveals aren't choices: the `CardsRevealed` event and the view (`CardInfo.Revealed`, `SideInfo.RevealedHand`) show the revealed cards to both players until the text finishes; `RevealEnded` hides them again.
 
-In code (`Assets/Compile/Engine/Game/`), `Game.Submit(intent)` returns an `IntentResult` with the `GameEvent`s it caused, and `Game.ViewFor(seat)` returns that player's `PlayerView`. Work runs on a last-in-first-out stack of steps: the turn's phases are steps, and in Phase 5 card text will push its own steps on top, which gives the Codex's interrupt order for free.
+In code (`Assets/Compile/Engine/Game/`), `Game.Submit(intent)` returns an `IntentResult` with the `GameEvent`s it caused, and `Game.ViewFor(seat)` returns that player's `PlayerView`. Work runs on a last-in-first-out stack of steps: the turn's phases are steps, and card text pushes its own steps on top, which gives the Codex's interrupt order for free.
 
 ### Undo
 
-The active player can undo any number of their decisions in the current turn, until they press **End turn**.
+The active player can undo any number of their decisions in the current turn, until they press **End turn**. The draft works the same way: each round of picks waits for **Confirm**, and picks can be undone until then.
 
 - **End turn:** after the End phase the engine waits for an `EndTurn` intent before the next turn begins, so the whole turn (End effects included) stays undoable. In hot-seat, End turn leads to the pass screen.
-- **How:** the engine snapshots the state (including the RNG) at the start of each turn and records the turn's intents. `Undo` restores the snapshot and replays every intent except the last. Because the engine is deterministic, the replay always matches what happened.
+- **How:** the engine records every accepted intent. `Undo` rebuilds the game from its starting state and replays every intent except the last. Because the engine is deterministic (seeded shuffles and ids; bots' choices arrive as intents), the replay always matches what happened, and a whole game replays in milliseconds.
 - **Barriers:** undo would let a player look at hidden cards and then take the move back (e.g. Refresh, see the cards, undo, play differently). So undo can't go back past anything that showed the player new hidden information or used randomness they've seen the result of:
   - drawing (including a reshuffle, and taking the opponent's top card on a Recompile);
-  - playing or discarding from the top of a deck, reveals, and random takes from a hand (Phase 4b);
-  - choices the opponent made during the turn.
+  - playing from the top of a deck, reveals, and random takes from a hand;
+  - choices the opponent made during the turn (e.g. which cards they discarded).
 - **Scope:** only the active player can undo, and only their own decisions. Compiling is forced, so it can't be undone itself, but a choice made during it (which line, Control's rearrange) can.
 - **Online:** the host's engine does the undo; the opponent's view returns to the earlier state, and the log says what was undone.
 

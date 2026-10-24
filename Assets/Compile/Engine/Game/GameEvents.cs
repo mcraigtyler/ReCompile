@@ -21,6 +21,9 @@ namespace Compile.Engine
         }
 
         internal string Name => CardId.Replace('_', ' ');
+
+        // The card's name if this viewer could see it at the time, otherwise a stand-in.
+        internal string NameFor(int viewer, string hidden = "a face-down card") => FaceUp || Owner == viewer ? Name : hidden;
     }
 
     // Something that happened, in order, for animation and the event log. Events hold full information;
@@ -150,19 +153,22 @@ namespace Compile.Engine
         public CardRef Card { get; }
         public int FieldLine { get; }
         public bool FaceUp { get; }
+        public bool FromDeck { get; }       // the top card of the player's deck, rather than from their hand
 
-        internal CardPlayed(int seat, CardRef card, int fieldLine, bool faceUp)
+        internal CardPlayed(int seat, CardRef card, int fieldLine, bool faceUp, bool fromDeck = false)
         {
             Seat = seat;
             Card = card;
             FieldLine = fieldLine;
             FaceUp = faceUp;
+            FromDeck = fromDeck;
         }
 
         public override string Describe(GameState state, int viewer)
         {
             var what = FaceUp ? $"{Card.Name} face-up" : Seat == viewer ? $"{Card.Name} face-down" : "a card face-down";
-            return $"{Who(state, Seat, viewer)} played {what} into the {LineName(FieldLine, viewer)}.";
+            var from = FromDeck ? $" from the top of {(Seat == viewer ? "your" : "their")} deck" : "";
+            return $"{Who(state, Seat, viewer)} played {what}{from} into the {LineName(FieldLine, viewer)}.";
         }
     }
 
@@ -229,15 +235,166 @@ namespace Compile.Engine
             $"{Who(state, Seat, viewer)} {(Recompile ? "recompiled" : "compiled")} {Protocol} in the {LineName(FieldLine, viewer)}.";
     }
 
-    // Cards removed from the field to their owners' trashes (by compiling, for now).
+    // Cards removed from the field to their owners' trashes, by compiling or by card text.
     public sealed class CardsDeleted : GameEvent
     {
+        public int Seat { get; }            // whose effect deleted them, or -1 for compiling
+        public override int Actor => Seat;
         public IReadOnlyList<CardRef> Cards { get; }
 
-        internal CardsDeleted(IReadOnlyList<CardRef> cards) => Cards = cards;
+        internal CardsDeleted(IReadOnlyList<CardRef> cards, int seat = -1)
+        {
+            Cards = cards;
+            Seat = seat;
+        }
 
         public override string Describe(GameState state, int viewer) =>
-            Cards.Count == 0 ? null : $"Deleted {Plural(Cards.Count, "card")}: {Names(Cards)}.";
+            Cards.Count == 0 ? null
+            : Seat < 0 ? $"Deleted {Plural(Cards.Count, "card")}: {Names(Cards)}."
+            : $"{Who(state, Seat, viewer)} deleted {Names(Cards)}.";
+    }
+
+    // Field cards turned over, by card text. The refs show each card as it is after the flip.
+    public sealed class CardsFlipped : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public IReadOnlyList<CardRef> Cards { get; }
+
+        internal CardsFlipped(int seat, IReadOnlyList<CardRef> cards)
+        {
+            Seat = seat;
+            Cards = cards;
+        }
+
+        // A flipped card was face-up before or after, so everyone has seen it.
+        public override string Describe(GameState state, int viewer) =>
+            $"{Who(state, Seat, viewer)} flipped {string.Join(", ", Cards.Select(c => $"{c.Name} {(c.FaceUp ? "face-up" : "face-down")}"))}.";
+    }
+
+    public sealed class CardShifted : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public CardRef Card { get; }
+        public int FromLine { get; }        // field lines
+        public int ToLine { get; }
+
+        internal CardShifted(int seat, CardRef card, int fromLine, int toLine)
+        {
+            Seat = seat;
+            Card = card;
+            FromLine = fromLine;
+            ToLine = toLine;
+        }
+
+        public override string Describe(GameState state, int viewer) =>
+            $"{Who(state, Seat, viewer)} shifted {Card.NameFor(viewer)} from the {LineName(FromLine, viewer)} to the {LineName(ToLine, viewer)}.";
+    }
+
+    // Field cards back to their owners' hands. The refs show each card as it was in the field.
+    public sealed class CardsReturned : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public IReadOnlyList<CardRef> Cards { get; }
+
+        internal CardsReturned(int seat, IReadOnlyList<CardRef> cards)
+        {
+            Seat = seat;
+            Cards = cards;
+        }
+
+        public override string Describe(GameState state, int viewer) =>
+            $"{Who(state, Seat, viewer)} returned {string.Join(", ", Cards.Select(c => c.NameFor(viewer)))} to {(Cards.All(c => c.Owner == viewer) ? "your" : Cards.All(c => c.Owner != viewer) ? $"{state.Players[Cards[0].Owner].Name}'s" : "its owner's")} hand.";
+    }
+
+    // Cards shown to both players (from a hand, or face-down in the field) until the text that revealed
+    // them finishes; RevealEnded follows.
+    public sealed class CardsRevealed : GameEvent
+    {
+        public int Seat { get; }            // whose effect revealed them
+        public override int Actor => Seat;
+        public int Owner { get; }
+        public IReadOnlyList<CardRef> Cards { get; }
+        public bool InHand { get; }
+
+        internal CardsRevealed(int seat, int owner, IReadOnlyList<CardRef> cards, bool inHand)
+        {
+            Seat = seat;
+            Owner = owner;
+            Cards = cards;
+            InHand = inHand;
+        }
+
+        public override string Describe(GameState state, int viewer)
+        {
+            var whose = Owner == viewer ? "your" : Owner == Seat ? "their" : $"{state.Players[Owner].Name}'s";
+            return InHand
+                ? $"{Who(state, Seat, viewer)} revealed {Names(Cards)} from {whose} hand."
+                : $"{Who(state, Seat, viewer)} revealed {whose} face-down {Names(Cards)}.";
+        }
+    }
+
+    public sealed class RevealEnded : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+
+        internal RevealEnded(int seat) => Seat = seat;
+    }
+
+    // Cards from one hand to the other; the receiver owns them from now on. Both players see which.
+    public sealed class CardsGiven : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public int ToSeat { get; }
+        public IReadOnlyList<CardRef> Cards { get; }
+
+        internal CardsGiven(int seat, int toSeat, IReadOnlyList<CardRef> cards)
+        {
+            Seat = seat;
+            ToSeat = toSeat;
+            Cards = cards;
+        }
+
+        public override string Describe(GameState state, int viewer) =>
+            Seat == viewer ? $"You gave {Names(Cards)} to {state.Players[ToSeat].Name}." : $"{Who(state, Seat, viewer)} gave you {Names(Cards)}.";
+    }
+
+    // Random cards taken from the opponent's hand; the taker owns them from now on. Both players see which.
+    public sealed class HandCardsTaken : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public int FromSeat { get; }
+        public IReadOnlyList<CardRef> Cards { get; }
+
+        internal HandCardsTaken(int seat, int fromSeat, IReadOnlyList<CardRef> cards)
+        {
+            Seat = seat;
+            FromSeat = fromSeat;
+            Cards = cards;
+        }
+
+        public override string Describe(GameState state, int viewer) =>
+            Seat == viewer ? $"You took {Names(Cards)} from {state.Players[FromSeat].Name}'s hand." : $"{Who(state, Seat, viewer)} took {Names(Cards)} from your hand.";
+    }
+
+    public sealed class DebugEffectUsed : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public string Label { get; }
+
+        internal DebugEffectUsed(int seat, string label)
+        {
+            Seat = seat;
+            Label = label;
+        }
+
+        public override string Describe(GameState state, int viewer) => $"[Debug] {Who(state, Seat, viewer)}: {Label}";
     }
 
     public sealed class ProtocolCompiled : GameEvent
@@ -296,6 +453,21 @@ namespace Compile.Engine
             var whose = TargetSeat == viewer ? "your" : Seat == TargetSeat ? "their" : $"{state.Players[TargetSeat].Name}'s";
             return $"{Who(state, Seat, viewer)} rearranged {whose} Protocols: {string.Join(", ", Order)}.";
         }
+    }
+
+    public sealed class MoveUndone : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public string What { get; }
+
+        internal MoveUndone(int seat, string what)
+        {
+            Seat = seat;
+            What = what;
+        }
+
+        public override string Describe(GameState state, int viewer) => $"{Who(state, Seat, viewer)} undid {What}.";
     }
 
     public sealed class GameEnded : GameEvent

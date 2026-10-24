@@ -219,7 +219,7 @@ The engine is `Compile.Engine.Game` (no Unity references), in `Assets/Compile/En
 - [x] Rearrange validation (a real permutation, different from the start; Compiled status moves with the Protocol, cards stay)
 - [x] Victory check after each Compile
 - [x] House rulings for situations the rules don't cover (stalemate, Refresh with nothing to draw); see [rules.md](official/rules.md#house-rulings)
-- [ ] Empty-deck top-card effects do nothing: no card effects yet (Phase 5)
+- [x] Empty-deck top-card effects do nothing: `PlayTopOfDeck` (Phase 4b) does nothing on an empty deck and doesn't reshuffle
 
 **Interfaces**
 
@@ -287,27 +287,31 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 **Match**
 
-- [ ] `MatchController` that owns a `Game` and replaces the Phase 2 `BoardSandbox`
-- [ ] Board renders the active player's `PlayerView`; "Pass to Player 2" screen between turns hides the previous hand
-- [ ] All inputs submit engine `Intent`s; illegal moves show the engine's reason
-- [ ] Engine events feed the event log (`GameEvent.Describe`)
-- [ ] Phase 1 Draft and Result screens use the engine instead of the stub
-- [ ] "Local game" entry on the Title screen
+- [x] `MatchController` (`Client/App/MatchController.cs`) owns a `Game` and replaces the Phase 2 `BoardSandbox` (deleted, with its tests). Each seat is a person at the screen or `RandomBot`, which plays the offline stand-in opponent (and drives the fuzzer)
+- [x] Board renders the `PlayerView` of the player at the screen; an opaque "Pass to …" screen hides everything between players, including at the start of the game
+- [x] All inputs submit engine `Intent`s; illegal moves show the engine's reason as a toast
+- [x] Engine events feed the event log (`GameEvent.Describe`)
+- [x] Draft picks are confirmed: after each round of picks (1-2-2-1) the player presses **Confirm** (**Start game** after the last), and can **Undo** picks until then; undone picks fly back to the pool. The bot confirms its own picks
+- [x] The Draft screen runs the engine's draft (the match starts there); the Result screen shows the engine's outcome (compiled, conceded, or stalemate, including draws) and Rematch keeps hot-seat
+- [x] "Local game (two players, one screen)" on the Title screen, with a setup panel for both names; who goes first is random
+- [x] Debug menu: auto-play a move or the rest of your turn, concede, opponent leaves, leave game
 
 **Board UI for the questions the engine already asks**
 
-- [ ] Hand cards: Clear Cache picks the cards to discard from the hand fan; Confirm shows "n of N"
-- [ ] Line: choosing which line to compile when several qualify (lanes highlight with the existing `ShowLanes`)
-- [ ] Rearrange: Control's optional rearrange of either player's Protocols (extends the Phase 2 rearrange flow to the opponent's row), with a "Don't rearrange" option
+- [x] Hand cards: Clear Cache picks the cards to discard from the hand fan (they rise with a DISCARD label); Confirm shows "n of N"
+- [x] Line: choosing which line to compile when several qualify (lanes highlight with the existing `ShowLanes`). Without card effects this can't come up in play, so it's checked in 4c
+- [x] Rearrange: Control's optional rearrange of either player's Protocols. Tap two Protocols on the same side to swap them; changing one side puts the other back; Confirm is enabled once the order differs; "Don't rearrange" declines
+- [x] Prompt buttons stack on the narrow wide-screen panel and sit in a row on tall screens
 
 **Undo** (see [design §5](design.md#undo))
 
-- [ ] **End turn:** the engine stops after the End phase and waits for an `EndTurn` intent before the next turn starts, so the whole turn stays undoable until the player confirms it. In hot-seat, End turn leads to the "Pass to Player 2" screen
-- [ ] `Undo` intent: takes back the active player's last decision this turn (a play, Refresh, or answered choice), as many times as they like, back to the start of the turn or the last undo barrier
-- [ ] Engine keeps a snapshot at the start of the turn (state and RNG) plus the turn's intents; undo restores the snapshot and replays every intent but the last, so it can't drift from what really happened
-- [ ] Undo barriers: nothing that showed the player new hidden information can be undone (drawing, a reshuffle, taking the opponent's top card on a Recompile). A Refresh is therefore final once its cards are drawn
-- [ ] `PlayerView` says whether undo is available; the board has an Undo button (and Ctrl+Z on desktop) next to End turn; the log notes "You undid …"
-- [ ] Tests: undo after each kind of decision restores the exact earlier state and view; barriers can't be passed; only the active player can undo; the fuzzer randomly undoes and redoes and checks that replaying gives identical states
+- [x] **End turn:** the engine stops after the End phase and waits for an `EndTurn` intent before the next turn starts (`Game.ConfirmEndTurn`, on by default; rule tests turn it off), so the whole turn stays undoable until the player confirms it. In hot-seat, End turn leads to the pass screen; the bot ends its own turns
+- [x] `Undo` intent: takes back the active player's last decision this turn (a play, Refresh, or answered choice), as many times as they like, back to the start of the turn or the last undo barrier
+- [x] Undo by replay: the engine records every accepted intent; undo rebuilds the game from its starting state and replays all but the last. The engine is deterministic, so the replay always matches (a game of a few hundred intents replays in milliseconds). This is simpler than snapshots and can't drift
+- [x] Undo barriers: nothing that showed the player new hidden information can be undone (drawing, a reshuffle, taking the opponent's top card on a Recompile). A Refresh is therefore final once its cards are drawn, but a Refresh waiting on Control's rearrange can still be undone
+- [x] `PlayerView` has `CanEndTurn`, `CanUndo`, and `UndoBlockedReason`; the board has Undo and End turn buttons (on tall screens they replace the play buttons once the turn is done), Undo in choice prompts, and Ctrl+Z (or Cmd+Z); the log notes "You undid …"
+- [x] Draft rounds use the same mechanism: picks wait for an `EndTurn` (confirm) and can be undone until then; the game starts when the last picks are confirmed
+- [x] Tests: 13 undo tests (3 for the draft) (each kind of decision, unlimited undo back to the turn start, barriers, only the active player, not across End turn, the log). The fuzzer makes a move, undoes it, and checks the whole game state is identical
 
 **Done when:** two people draft and finish a game without card text in the Editor and in a WebGL build, in wide and tall layouts, with no engine bugs found, undoing moves freely within a turn.
 
@@ -315,44 +319,47 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 **Goal:** every effect a card can produce, and every question it can ask, works in the engine with tests. Engine only, no UI.
 
-**Effect framework**
+**Effect framework** (`Engine/Game/Effects/`, `Game.Effects.cs`; see [design §5](design.md#effects-and-triggers))
 
-- [ ] Building blocks: `Flip`, `Shift`, `Delete`, `Return`, `Reveal`, `PlayFrom` (hand or top of a deck, face-down, either player, into a given line), `Give`/`Take` (random or chosen), `Swap`. `Draw`, `Discard`, and `Rearrange` already exist in `Game.Turn.cs`
-- [ ] Resolution stack for effects (extends the existing step stack): interrupts, last in first out, and cancelling the rest of a card's text if it's covered, flipped, or removed mid-resolution
-- [ ] Committed cards: a card being played or shifted can't be targeted; "When this card would be covered" resolves before the card lands
-- [ ] Middle text runs when a card is played face-up, flipped face-up, or uncovered (including the card below becoming uncovered when its top card is shifted, deleted, or returned)
-- [ ] Trigger points: Start and End (only what was visible when the phase began; the owner orders them); after draw, discard, delete, and Clear Cache; when this card would be covered or deleted by compiling
-- [ ] "All" (simultaneous, includes covered cards) vs. "each" (one at a time, in the active player's order); uncovered-only by default
-- [ ] Rule-modifier queries that persistent effects can override: `CanPlayFaceUp`, `CanCompile`, `CardValue`, `CanFlip`, "ignore middle commands" (the first three already exist in `Game.cs`)
-- [ ] Card effect base class with Top / Middle / Bottom hooks per [design §5](design.md#effects-and-triggers), and a registry from card id (`Fire_4`) to effect class; empty for now, so every card stays text-less
+- [x] Building blocks on `Effect`: `Draw`, `DrawFromOpponentDeck`, `Refresh`, `Discard`/`DiscardAny`, `Flip`, `Shift`, `Delete`, `Return` (each by `Target` or on a given card), `FlipAll`/`ShiftAll`/`DeleteAll`/`ReturnAll`, `Each`/`EachCard`, `RevealField`/`RevealHand`/`RevealFromHand`, `PlayFromHand`, `PlayTopOfDeck`, `Give`, `TakeRandom`, `Rearrange`, `Swap`, `Choose`, `May`, `ChooseLine`. A `Target` says which field cards qualify (whose, covered, face-up/down, "other", line, any condition)
+- [x] Card text is an iterator of building blocks (`IEnumerable<Op>`), run on the existing step stack: interrupts resolve last in, first out, "if you do" checks `Op.Done`, and the rest of a card's text is lost if it's covered, flipped, or leaves the field mid-resolution (a shifted card keeps it)
+- [x] Committed cards: a card being played or shifted is in no stack, so nothing can pick it, and it always lands. "When this card would be covered" resolves before it lands; a shift uncovers the card beneath (whose text resolves) before the shifted card lands
+- [x] Middle text runs when a card lands face-up, is flipped face-up while uncovered, or is uncovered face-up (by a shift, delete, or return). Ruling: a covered card flipped face-up doesn't run it
+- [x] Trigger points: Start and End (only what was visible when the phase began; the owner orders several), after draw, discard, delete, and Clear Cache, and "when this card would be" covered, flipped, or deleted by compiling. Several texts set off at once resolve in the active player's chosen order. Ruling (found by the fuzzer): "when this card would be …" text can't set itself off again while it's resolving, e.g. by flipping its own card
+- [x] "All" (at once, includes covered cards) vs. "each" (one at a time, in the active player's order); uncovered-only by default
+- [x] Rule-modifier queries persistent text can override: `CardValue`, `LineValue`, `CanPlayFaceUp`, `CheckPlacement` (forbidden plays), `CanCompile`, `CanFlip`, skipping Check Cache, and ignoring middle text. Bottom-slot rules only apply while uncovered. If card text leaves a player nothing legal to play and no Refresh, their Action step is skipped
+- [x] `CardEffect` base class with middle text, triggers, and rule hooks, and a `CardEffects` registry from card id (`Fire_4`) to effect. `CardEffects.None` is the default, so every card stays text-less until Phase 5
+- [x] A runaway guard: more than 100,000 steps without a question throws instead of hanging
 
 **Choice kinds** (`PendingChoice`/`ChoiceKind` and `ChoiceInfo`)
 
-- [ ] `FieldCards`, with a filter and min/max
-- [ ] `HandCards`
-- [ ] `Line`, with a "from"/"to" context
-- [ ] `Option`: labeled choices, including yes/no for "may"
-- [ ] `Rearrange` / `Swap`, with the target side fixed or chosen
-- [ ] `Order`: a list of effects to sequence
-- [ ] Reveal: an event plus a short-lived reveal in the view, so revealed cards show to both players and then hide again
+- [x] `FieldCards`, with a filter and min/max (Phase 3's `Cards` is split into `FieldCards` and `HandCards`; the board uses the kind instead of guessing)
+- [x] `HandCards`
+- [x] `Line`, with a purpose (compile, shift to, choose) and the card being shifted
+- [x] `Option`: labeled choices, including a single optional option for "may"
+- [x] `Rearrange` / `Swap`, with the target side fixed or chosen (`ChoiceInfo.Side`)
+- [x] `Order`: a list of effects (or lines) to sequence
+- [x] `Play`: "play 1 card", answered with a `PlayCard` (face-up/down allowed, lines allowed)
+- [x] Reveal: `CardsRevealed`/`RevealEnded` events, and `CardInfo.Revealed`/`SideInfo.RevealedHand` in the view while the revealing text resolves
 
 **Debug effects**
 
-- [ ] A dev-only `DebugEffect` intent runs any building block ("flip 1 card", "shift 1 of your opponent's covered cards", …), so effects can be tested and played before real card text exists
+- [x] A dev-only `DebugEffect` intent runs any of the 33 entries in `DebugEffects.All` ("Flip 1 card", "Shift 1 of your opponent's covered cards", …) for the active player, in their Action step or after it, without using up the action
 
 **Tests**
 
-- [ ] A scenario test for each building block and each choice kind; the `Scenario` helper can run a debug effect
-- [ ] Redaction tests cover reveals: revealed cards are visible to both players only while revealed
-- [ ] The fuzzer also fires random debug effects, keeping its invariants plus the reveal and committed-card rules
+- [x] A scenario test for each building block and choice kind (`EffectTests`, 30 tests); the `Scenario` helper can run a debug effect (`game.Debug("flip-1")`) and give cards made-up text (`TestCard`)
+- [x] Framework tests with made-up card text (`CardTextTests`, 29 tests): when middle text runs, interrupts, lost text, "if you do", committed cards, every trigger, and every rule modifier
+- [x] Redaction tests cover reveals: revealed cards are visible to both players only while revealed, revealed hand cards get new ids, and shifted or returned face-down cards aren't named to the opponent
+- [x] The fuzzer also runs games where every card has random text built from debug effects and players fire random debug effects, checking committed cards land, reveals end, and cards stay on their owner's side. It logs how often each event and choice kind came up
 
 **Undo with effects**
 
-- [ ] Undo covers effects and every new choice kind: undoing a choice puts the question back; undoing a play takes back everything its text did
-- [ ] More undo barriers: draws and plays from the top of a deck, reveals, random takes from a hand, and choices the opponent made during the turn (e.g. which cards they discarded)
-- [ ] Tests for each barrier, and fuzzed undo/redo with effects
+- [x] Undo covers effects and every new choice kind: undoing a choice puts the question back; undoing a play takes back everything its text did (undo by replay needed no changes)
+- [x] More undo barriers: plays from the top of a deck, reveals, random takes from a hand, the opponent drawing, and the opponent's answers during the turn (e.g. which cards they discarded)
+- [x] Tests for each barrier (`EffectUndoTests`), and fuzzed undo with effects
 
-**Done when:** every building block and choice kind has tests, and 10,000 fuzzed games with random effects and random undos pass.
+**Done when:** every building block and choice kind has tests, and 10,000 fuzzed games with random effects and random undos pass. ✅ `Fuzz_10000RandomGamesWithEffects` passes (about 6 minutes; every choice kind and effect event comes up tens of thousands of times).
 
 ### 4c — Effects on the board
 
