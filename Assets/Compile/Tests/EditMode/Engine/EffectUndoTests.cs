@@ -52,7 +52,7 @@ namespace Compile.Engine.Tests
             Assert.That(game.State.Players[0].Hand.Names(), Is.EqualTo(new[] { "Fire_1" }));
         }
 
-        [TestCase("play-top-each-line", "A card was played from the top of a deck this turn.")]
+        [TestCase("play-top-chosen-lines", "A card was played from the top of a deck this turn.")]
         [TestCase("reveal-opponent-hand", "Cards were revealed this turn.")]
         [TestCase("take-random", "A card was taken at random this turn.")]
         public void Undo_BarriersFromEffects(string effect, string reason)
@@ -62,8 +62,9 @@ namespace Compile.Engine.Tests
                 deck 0: Fire_2 Fire_3 Fire_4
                 hand 1: Water_0 Water_1");
             game.Debug(effect);
+            // Right after the card comes off the deck. (Saying "done" afterwards can be undone: it showed nothing.)
             if (game.Pending != null)
-                game.Do(AnswerChoice.WithOrder(0, 0, 1, 2));
+                game.Do(AnswerChoice.WithLine(0, 0));
             Assert.That(game.CheckUndo(0), Is.EqualTo(reason));
             Assert.That(game.ViewFor(0).UndoBlockedReason, Is.EqualTo(reason));
         }

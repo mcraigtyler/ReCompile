@@ -84,6 +84,7 @@ namespace Compile.Engine
                     Optional = choice.Optional,
                     Side = choice.TargetSeat < 0 ? ChoiceSide.Either : choice.TargetSeat == viewer ? ChoiceSide.Local : ChoiceSide.Opponent,
                     Purpose = choice.Purpose,
+                    Verb = choice.Verb,
                     FaceUpAllowed = choice.FaceUpAllowed,
                     FaceDownAllowed = choice.FaceDownAllowed,
                     SourceCardId = choice.Source?.Spec.Id,

@@ -15,13 +15,15 @@ namespace Compile.Client.Screens
 {
     // The game board. Renders the PlayerView of whoever is at the screen and sends their moves to the
     // rules engine through the MatchController. In hot-seat, a pass screen hides everything between
-    // players; against the stand-in opponent, the bot moves on its own.
+    // players; against the stand-in opponent, the bot moves on its own. Every question card text can ask
+    // is answered here: cards on the field or in the hand, lines, options, orders, Protocols, and plays.
     public sealed class BoardScreen : TableScreen
     {
         const float Pitch = 40f;
         const float HandSpace = 0.5f;
         const float OpponentStackReach = 9.6f;   // far edge of the opponent's first card in each lane (table units)
         const float ResultDelay = 1.6f;
+        const string Hint = "\n<size=70%><color=#A397BA>{0}</color></size>";
 
         MatchController _match;
         BoardTable _table;
@@ -35,12 +37,20 @@ namespace Compile.Client.Screens
         float _resultAt = -1f;
         string _promptKey;
         bool _promptWide;
+        ButtonSkin _confirm;        // the prompt's Confirm button, enabled once the answer is complete
 
         // Picks for a card choice (e.g. Clear Cache), before they're confirmed.
         readonly List<int> _picked = new List<int>();
 
-        // Rearranging (Control): both Protocol rows can be reordered, one side at a time.
+        // An Order choice: option indexes in the order they'll resolve, so far.
+        readonly List<int> _ordered = new List<int>();
+
+        // Rearranging (Control, or card text): Protocol rows can be reordered, one side at a time.
+        // In swap mode, each swap starts again from the original order, so the answer is always one swap.
         bool _rearranging;
+        bool _swapOnly;
+        string _rearrangeQuestion;
+        readonly bool[] _rearrangeAllowed = new bool[2];
         CardView[][] _rearrangeSlots;
         int[][] _rearrangeOrder;
         int _pickSide = -1, _pickSlot = -1;
@@ -50,6 +60,10 @@ namespace Compile.Client.Screens
         bool CanAct => _view != null && _view.CanAct && !Covered;
         bool ChoosingHandCards => Choice != null && Choice.Kind == ChoiceKind.HandCards;
         bool ChoosingFieldCards => Choice != null && Choice.Kind == ChoiceKind.FieldCards;
+        bool ChoosingPlay => Choice != null && Choice.Kind == ChoiceKind.Play;
+
+        // A hand card can be played now: in the Action step, or because card text says "play 1 card".
+        bool CanPlay => CanAct || ChoosingPlay && !Covered;
 
         protected override void OnEnter()
         {
@@ -147,12 +161,43 @@ namespace Compile.Client.Screens
 
         // ---------- Rendering ----------
 
-        void OnChanged(IReadOnlyList<GameEvent> events) => Render();
+        void OnChanged(IReadOnlyList<GameEvent> events)
+        {
+            // Cards changing places in ways the view alone can't tell apart: back to a hand rather than to
+            // the trash, and between the two hands.
+            var returned = new HashSet<int>();
+            var leaving = new HashSet<int>();
+            var arriving = false;
+            foreach (var e in events)
+            {
+                switch (e)
+                {
+                    case CardsReturned r:
+                        returned.UnionWith(r.Cards.Select(c => c.InstanceId));
+                        break;
+                    case CardsGiven g:
+                        if (g.Seat == Viewer)
+                            leaving.UnionWith(g.Cards.Select(c => c.InstanceId));
+                        arriving |= g.ToSeat == Viewer;
+                        break;
+                    case HandCardsTaken t:
+                        if (t.FromSeat == Viewer)
+                            leaving.UnionWith(t.Cards.Select(c => c.InstanceId));
+                        arriving |= t.Seat == Viewer;
+                        break;
+                }
+            }
+            _hud.Hand.ExpectTransfers(leaving, arriving);
+            Render(returned);
+            ShowReveals(events);
+        }
 
-        void Render()
+        void Render() => Render(null);
+
+        void Render(ICollection<int> returned)
         {
             _view = _match.View;
-            _table.Render(_view);
+            _table.Render(_view, returned);
             _hud.Render(_view, _view.Local.Name);
 
             if (_selected >= 0 && _view.Hand.All(c => c.InstanceId != _selected))
@@ -160,8 +205,10 @@ namespace Compile.Client.Screens
             if (!ChoosingHandCards && !ChoosingFieldCards)
                 _picked.Clear();
             _picked.RemoveAll(id => Choice == null || !Choice.ValidCards.Contains(id));
+            if (Choice == null || Choice.Kind != ChoiceKind.Order)
+                _ordered.Clear();
             _hud.Hand.Select(ChoosingHandCards ? -1 : _selected, _faceUp);
-            _hud.Hand.SetMarked(ChoosingHandCards ? _picked : null, "DISCARD");
+            _hud.Hand.SetMarked(ChoosingHandCards ? _picked : null, (Choice?.Verb ?? "Chosen").ToUpperInvariant());
 
             UpdateTargets();
             UpdateReader();
@@ -180,19 +227,44 @@ namespace Compile.Client.Screens
         void UpdateTargets()
         {
             var selected = !ChoosingHandCards && _selected >= 0;
-            _hud.SetActionState(selected, _faceUp, selected && CanPlayFaceUpAnywhere(_selected), CanAct && _view.CanRefresh);
+            _hud.SetActionState(selected, _faceUp, selected && FaceUpAllowed(_selected), CanAct && _view.CanRefresh);
             _hud.SetTurnState(_view.CanUndo && !Covered, _view.CanEndTurn && !Covered,
                 _view.LocalTurn && _view.Stage == GameStage.Playing ? _view.UndoBlockedReason : null);
 
             if (Choice != null && Choice.Kind == ChoiceKind.Line)
-                _table.ShowLanes(Enumerable.Range(0, 3).Select(line => Choice.ValidLines.Contains(line)).ToArray());
-            else if (selected && CanAct)
-                _table.ShowLanes(Enumerable.Range(0, 3).Select(line => !_faceUp || CanPlayFaceUp(_selected, line)).ToArray());
+            {
+                var (local, opponent) = LineSides();
+                _table.ShowLanes(Enumerable.Range(0, 3).Select(line => Choice.ValidLines.Contains(line)).ToArray(), local, opponent);
+            }
+            else if (selected && CanPlay)
+                _table.ShowLanes(Enumerable.Range(0, 3).Select(line => CanPlayInto(_selected, line, _faceUp)).ToArray());
             else
                 _table.ShowLanes(null);
 
-            if (!_rearranging)
-                _table.ShowChoice(ChoosingFieldCards ? Choice.ValidCards : null);
+            if (_rearranging)
+                return;
+            if (ChoosingFieldCards)
+                _table.ShowChoice(Choice.ValidCards, _picked);
+            else if (Choice != null && Choice.Kind == ChoiceKind.Order && Choice.ValidCards.Count > 0)
+                _table.ShowChoice(Choice.ValidCards, _ordered.Select(i => Choice.ValidCards.ElementAt(i)).ToList());
+            else
+                _table.ShowChoice(null, null, Choice?.SubjectInstanceId ?? 0);
+        }
+
+        // Which halves of the lines a Line choice is about: your own to compile; the moving card's side to
+        // shift; both for a whole line.
+        (bool local, bool opponent) LineSides()
+        {
+            switch (Choice.Purpose)
+            {
+                case LinePurpose.Compile:
+                    return (true, false);
+                case LinePurpose.ShiftTo:
+                    var subject = _table.InfoFor(Choice.SubjectInstanceId);
+                    return subject == null ? (true, true) : (subject.LocalOwner, !subject.LocalOwner);
+                default:
+                    return (true, true);
+            }
         }
 
         // ---------- Prompt ----------
@@ -201,14 +273,17 @@ namespace Compile.Client.Screens
         {
             string key = null;
             if (Choice != null)
-                key = $"choice:{Choice.Kind}:{Choice.Prompt}:{_picked.Count}:{_view.CanUndo}";
+                key = $"choice:{Choice.Kind}:{Choice.Prompt}:{_picked.Count}:{_ordered.Count}:{_view.CanUndo}:{Covered}";
             if (key == _promptKey)
                 return;
             _promptKey = key;
+            _confirm = null;
 
+            // Unconfirmed Protocol moves are put back when the question goes away or changes.
+            if (Choice == null || Choice.Kind != ChoiceKind.Rearrange && Choice.Kind != ChoiceKind.Swap)
+                EndRearrange();
             if (Choice == null)
             {
-                EndRearrange();
                 _hud.HidePrompt();
                 return;
             }
@@ -216,40 +291,132 @@ namespace Compile.Client.Screens
             var buttons = new List<(string, ButtonStyle, UnityEngine.Events.UnityAction)>();
             if (_view.CanUndo)
                 buttons.Add(("Undo", ButtonStyle.Quiet, Undo));
+            var text = Choice.Prompt;
+            if (!_view.CanUndo && _view.LocalTurn && !string.IsNullOrEmpty(_view.UndoBlockedReason))
+                text += string.Format(Hint, "Can't undo: " + _view.UndoBlockedReason);
 
             switch (Choice.Kind)
             {
                 case ChoiceKind.Rearrange:
+                case ChoiceKind.Swap:
                     StartRearrange();
-                    buttons.Add(("Don't rearrange", ButtonStyle.Secondary, () => Submit(AnswerChoice.Declined(Viewer))));
+                    if (Choice.Optional)
+                        buttons.Add((Choice.Kind == ChoiceKind.Swap ? "Don't swap" : "Don't rearrange", ButtonStyle.Secondary, Decline));
                     buttons.Add(("Confirm", ButtonStyle.Primary, ConfirmRearrange));
-                    _hud.ShowPrompt(Choice.Prompt + "\n<size=70%><color=#A397BA>Tap two Protocols on the same side to swap them. Cards in the lines stay put.</color></size>",
-                        buttons.ToArray());
-                    _hud.PromptButton(buttons.Count - 1).Interactable = RearrangedSide() >= 0;
+                    var whose = Choice.Side == ChoiceSide.Either ? "on the same side " : "";
+                    ShowPrompt(text + string.Format(Hint, $"Tap two Protocols {whose}to swap them. Cards in the lines stay put."), buttons,
+                        RearrangedSide() >= 0);
                     return;
 
                 case ChoiceKind.Line:
-                    _hud.ShowPrompt(Choice.Prompt + "\n<size=70%><color=#A397BA>Tap a highlighted line.</color></size>", buttons.ToArray());
+                    var lineHint = Choice.Purpose == LinePurpose.ShiftTo ? "Tap a highlighted line to move the card there."
+                        : Choice.Purpose == LinePurpose.Compile ? "Tap a highlighted line to compile it."
+                        : "Tap a highlighted line.";
+                    // An optional line comes after one already picked ("another line?"): declining finishes.
+                    if (Choice.Optional)
+                        buttons.Add(("Done", ButtonStyle.Secondary, Decline));
+                    _hud.ShowPrompt(text + string.Format(Hint, lineHint), buttons.ToArray());
+                    return;
+
+                case ChoiceKind.Option:
+                    for (var i = 0; i < Choice.Options.Count; i++)
+                    {
+                        var option = i;
+                        buttons.Add((Choice.Options[i], i == 0 ? ButtonStyle.Primary : ButtonStyle.Secondary,
+                            () => Answer(AnswerChoice.WithOption(Viewer, option))));
+                    }
+                    if (Choice.Optional)
+                        buttons.Add((Choice.Options.Count == 1 ? "Don't" : "Skip", ButtonStyle.Quiet, Decline));
+                    _hud.ShowPrompt(text, buttons.ToArray());
+                    return;
+
+                case ChoiceKind.Order:
+                    var order = string.Join("   ", _ordered.Select((option, i) => $"<color=#E58BFF>{i + 1}.</color> {Choice.Options[option]}"));
+                    var orderHint = _ordered.Count == Choice.Options.Count ? "Confirm, or start over."
+                        : "Tap them in the order they'll resolve, first to last." + (Choice.ValidCards.Count > 0 ? " You can tap the cards too." : "");
+                    for (var i = 0; i < Choice.Options.Count; i++)
+                    {
+                        if (_ordered.Contains(i))
+                            continue;
+                        var option = i;
+                        buttons.Add(($"{_ordered.Count + 1}: {Choice.Options[i]}", ButtonStyle.Secondary, () => AddToOrder(option)));
+                    }
+                    if (_ordered.Count > 0)
+                        buttons.Add(("Start over", ButtonStyle.Quiet, () =>
+                        {
+                            _ordered.Clear();
+                            UpdateTargets();
+                            UpdatePrompt();
+                        }));
+                    buttons.Add(("Confirm", ButtonStyle.Primary, () => Answer(AnswerChoice.WithOrder(Viewer, _ordered))));
+                    ShowPrompt(text + (order.Length > 0 ? "\n<size=80%>" + order + "</size>" : "") + string.Format(Hint, orderHint), buttons,
+                        _ordered.Count == Choice.Options.Count);
+                    return;
+
+                case ChoiceKind.Play:
+                    var playHint = "Choose a card in your hand, then a highlighted line" + (Choice.FaceUpAllowed ? "." : ". It goes face-down.");
+                    if (Choice.Optional)
+                        buttons.Add(("Skip", ButtonStyle.Secondary, Decline));
+                    _hud.ShowPrompt(text + string.Format(Hint, playHint), buttons.ToArray());
                     return;
 
                 default:
                     if (Choice.Optional)
-                        buttons.Add(("Skip", ButtonStyle.Secondary, () => Submit(AnswerChoice.Declined(Viewer))));
-                    var needsConfirm = ChoosingHandCards || Choice.Max > 1;
-                    if (needsConfirm)
-                        buttons.Add(($"Confirm ({_picked.Count} of {Choice.Max})", ButtonStyle.Primary, ConfirmPicks));
-                    var hint = ChoosingHandCards ? "Tap cards in your hand to choose them." : "Tap a highlighted card.";
-                    _hud.ShowPrompt(Choice.Prompt + $"\n<size=70%><color=#A397BA>{hint}</color></size>", buttons.ToArray());
-                    if (needsConfirm)
-                        _hud.PromptButton(buttons.Count - 1).Interactable = _picked.Count >= Choice.Min && _picked.Count <= Choice.Max;
+                        buttons.Add(("Skip", ButtonStyle.Secondary, Decline));
+                    var verb = (Choice.Verb ?? "choose").ToLowerInvariant();
+                    var hint = ChoosingHandCards ? $"Tap cards in your hand to {verb} them."
+                        : Choice.Max > 1 ? $"Tap highlighted cards to {verb} them." : $"Tap a highlighted card to {verb} it.";
+                    text += string.Format(Hint, hint);
+                    // One card on the field is answered by tapping it; anything else is confirmed.
+                    if (!ChoosingHandCards && Choice.Max == 1)
+                    {
+                        _hud.ShowPrompt(text, buttons.ToArray());
+                        return;
+                    }
+                    var count = Choice.Min == Choice.Max ? $"{_picked.Count} of {Choice.Max}" : $"{_picked.Count}";
+                    buttons.Add(($"Confirm ({count})", ButtonStyle.Primary, ConfirmPicks));
+                    ShowPrompt(text, buttons, _picked.Count >= Choice.Min && _picked.Count <= Choice.Max);
                     return;
             }
+        }
+
+        // Shows the prompt; its last button is Confirm, enabled when the answer is complete.
+        void ShowPrompt(string text, List<(string, ButtonStyle, UnityEngine.Events.UnityAction)> buttons, bool complete)
+        {
+            _hud.ShowPrompt(text, buttons.ToArray());
+            _confirm = _hud.PromptButton(buttons.Count - 1);
+            if (_confirm != null)
+                _confirm.Interactable = complete;
         }
 
         void ConfirmPicks()
         {
             if (Choice != null)
-                Submit(AnswerChoice.WithCards(Viewer, _picked.ToArray()));
+                Answer(AnswerChoice.WithCards(Viewer, _picked.ToArray()));
+        }
+
+        void Decline() => Answer(AnswerChoice.Declined(Viewer));
+
+        // Sends the answer to the current question; whatever was picked for it is done with.
+        void Answer(Intent answer)
+        {
+            if (Covered || Choice == null)
+                return;
+            _picked.Clear();
+            _ordered.Clear();
+            Submit(answer);
+        }
+
+        void AddToOrder(int option)
+        {
+            if (Choice == null || _ordered.Contains(option))
+                return;
+            _ordered.Add(option);
+            // The last one has nowhere else to go.
+            if (_ordered.Count == Choice.Options.Count - 1)
+                _ordered.Add(Enumerable.Range(0, Choice.Options.Count).First(i => !_ordered.Contains(i)));
+            UpdateTargets();
+            UpdatePrompt();
         }
 
         // ---------- Pass the screen ----------
@@ -266,6 +433,42 @@ namespace Compile.Client.Screens
                 _hud.HideHandoff();
                 _match.HandTo(seat);
             });
+        }
+
+        // ---------- Reveals ----------
+        // Revealed field cards turn face-up for a moment with a banner; a revealed hand opens in a panel.
+
+        void ShowReveals(IReadOnlyList<GameEvent> events)
+        {
+            if (Covered)
+                return;
+            foreach (var reveal in events.OfType<CardsRevealed>())
+            {
+                if (!reveal.InHand)
+                {
+                    foreach (var card in reveal.Cards)
+                    {
+                        var spec = App.Cards.GetCard(card.CardId);
+                        _table.HoldReveal(card.InstanceId, App.Art.Card(spec.Protocol, spec.Value));
+                    }
+                    App.Hud.Toast(reveal.Describe(_match.Game.State, Viewer));
+                    continue;
+                }
+
+                if (reveal.Owner == Viewer)
+                {
+                    App.Hud.Toast(reveal.Describe(_match.Game.State, Viewer));
+                    continue;
+                }
+                var cards = reveal.Cards.Select(c =>
+                {
+                    var spec = App.Cards.GetCard(c.CardId);
+                    return new CardInfo { InstanceId = c.InstanceId, CardId = c.CardId, Protocol = spec.Protocol, PrintedValue = spec.Value, FaceUp = true };
+                }).ToList();
+                var name = _match.NameOf(reveal.Owner);
+                var title = cards.Count == 1 ? $"{name} revealed a card" : $"{name} revealed their hand · {cards.Count} cards";
+                _hud.ShowCards(title, cards, ZoomCard);
+            }
         }
 
         // ---------- Moves ----------
@@ -288,6 +491,8 @@ namespace Compile.Client.Screens
                 return;
             }
             Select(-1, true);
+            _picked.Clear();
+            _ordered.Clear();
             Submit(new Compile.Engine.Undo(Viewer));
         }
 
@@ -310,7 +515,7 @@ namespace Compile.Client.Screens
             if (Choice != null && Choice.Kind == ChoiceKind.Line)
             {
                 if (Choice.ValidLines.Contains(line))
-                    Submit(AnswerChoice.WithLine(Viewer, line));
+                    Answer(AnswerChoice.WithLine(Viewer, line));
                 return;
             }
             PlaySelected(line);
@@ -318,7 +523,7 @@ namespace Compile.Client.Screens
 
         void PlaySelected(int line)
         {
-            if (_selected < 0 || !CanAct)
+            if (_selected < 0 || !CanPlay)
                 return;
             // Read the choice before clearing the selection (clearing resets it to face-up).
             var id = _selected;
@@ -331,15 +536,22 @@ namespace Compile.Client.Screens
 
         CardInfo HandInfo(int id) => _view?.Hand.FirstOrDefault(c => c.InstanceId == id);
 
-        bool CanPlayFaceUp(int id, int line)
+        // Whether this card could go into this line on this side. A "play 1 card" choice limits the cards,
+        // lines, and sides; card text can forbid more, which the engine explains if it's tried.
+        bool CanPlayInto(int id, int line, bool faceUp)
         {
             var info = HandInfo(id);
-            return info != null && _view.Lines[line].Accepts(info.Protocol);
+            if (info == null)
+                return false;
+            if (ChoosingPlay && (!Choice.ValidCards.Contains(id) || !Choice.ValidLines.Contains(line) ||
+                                 (faceUp ? !Choice.FaceUpAllowed : !Choice.FaceDownAllowed)))
+                return false;
+            return !faceUp || _view.Lines[line].Accepts(info.Protocol);
         }
 
-        bool CanPlayFaceUpAnywhere(int id) => Enumerable.Range(0, 3).Any(line => CanPlayFaceUp(id, line));
+        bool FaceUpAllowed(int id) => Enumerable.Range(0, 3).Any(line => CanPlayInto(id, line, true));
 
-        bool DefaultOrientation(int id) => CanPlayFaceUpAnywhere(id);
+        bool DefaultOrientation(int id) => FaceUpAllowed(id);
 
         void OnHandCardTapped(int id)
         {
@@ -350,13 +562,18 @@ namespace Compile.Client.Screens
                 TogglePick(id);
                 return;
             }
+            if (ChoosingPlay && !Choice.ValidCards.Contains(id))
+            {
+                App.Hud.Toast("That card can't be played now.");
+                return;
+            }
 
             if (_selected == id)
                 Select(-1, true);
             else
                 Select(id, DefaultOrientation(id));
 
-            if (_selected >= 0 && !CanAct && Choice == null)
+            if (_selected >= 0 && !CanPlay && Choice == null)
             {
                 var message = !_view.LocalTurn ? "Wait for your turn to play a card."
                     : _view.CanEndTurn ? "Your turn is done: End turn, or Undo to change it."
@@ -380,7 +597,7 @@ namespace Compile.Client.Screens
             }
             else
                 App.Hud.Toast($"You've already chosen {Choice.Max}. Tap a chosen card to put it back.");
-            _hud.Hand.SetMarked(_picked, "DISCARD");
+            _hud.Hand.SetMarked(_picked, (Choice.Verb ?? "Chosen").ToUpperInvariant());
             UpdatePrompt();
         }
 
@@ -406,7 +623,12 @@ namespace Compile.Client.Screens
         {
             if (_selected < 0)
                 return;
-            if (faceUp && !CanPlayFaceUpAnywhere(_selected))
+            if (ChoosingPlay && (faceUp ? !Choice.FaceUpAllowed : !Choice.FaceDownAllowed))
+            {
+                App.Hud.Toast(faceUp ? "This card must be played face-down." : "This card must be played face-up.", error: true);
+                return;
+            }
+            if (faceUp && !FaceUpAllowed(_selected))
             {
                 var protocol = HandInfo(_selected)?.Protocol;
                 App.Hud.Toast($"{protocol} cards can only be played face-up into a line with a {protocol} Protocol.", error: true);
@@ -422,11 +644,19 @@ namespace Compile.Client.Screens
 
         void OnTableCardClicked(CardView card)
         {
-            if (Covered || !ChoosingFieldCards || !Choice.ValidCards.Contains(card.InstanceId))
+            if (Covered || Choice == null || !Choice.ValidCards.Contains(card.InstanceId))
+                return;
+
+            if (Choice.Kind == ChoiceKind.Order)
+            {
+                AddToOrder(Choice.ValidCards.ToList().IndexOf(card.InstanceId));
+                return;
+            }
+            if (!ChoosingFieldCards)
                 return;
             if (Choice.Max == 1)
             {
-                Submit(AnswerChoice.WithCards(Viewer, card.InstanceId));
+                Answer(AnswerChoice.WithCards(Viewer, card.InstanceId));
                 return;
             }
             if (_picked.Contains(card.InstanceId))
@@ -437,15 +667,21 @@ namespace Compile.Client.Screens
             UpdatePrompt();
         }
 
-        // ---------- Rearranging ----------
+        // ---------- Rearranging and swapping ----------
         // Side 0 is the viewer's Protocol row, side 1 the opponent's. Slots are in that player's own order.
 
         void StartRearrange()
         {
-            if (_rearranging)
+            var question = $"{Choice.Kind}:{Choice.Side}:{Choice.Prompt}";
+            if (_rearranging && question == _rearrangeQuestion)
                 return;
+            EndRearrange();
             Select(-1, true);
             _rearranging = true;
+            _rearrangeQuestion = question;
+            _swapOnly = Choice.Kind == ChoiceKind.Swap;
+            _rearrangeAllowed[0] = Choice.Side != ChoiceSide.Opponent;
+            _rearrangeAllowed[1] = Choice.Side != ChoiceSide.Local;
             _rearrangeSlots = new CardView[2][];
             _rearrangeOrder = new int[2][];
             for (var side = 0; side < 2; side++)
@@ -453,7 +689,10 @@ namespace Compile.Client.Screens
                 _rearrangeSlots[side] = Enumerable.Range(0, 3).Select(i => App.Mat.ProtocolCard(side == 0, i)).ToArray();
                 _rearrangeOrder[side] = new[] { 0, 1, 2 };
                 foreach (var card in _rearrangeSlots[side])
-                    card.Interactive = true;
+                {
+                    card.Interactive = _rearrangeAllowed[side];
+                    card.SetHighlight(_rearrangeAllowed[side], Palette.CyanDim);
+                }
             }
             _pickSide = _pickSlot = -1;
             _table.ShowChoice(null);
@@ -463,16 +702,9 @@ namespace Compile.Client.Screens
         {
             if (!_rearranging)
                 return;
-            _rearranging = false;
             for (var side = 0; side < 2; side++)
-            {
                 ResetSide(side);
-                foreach (var card in _rearrangeSlots[side])
-                {
-                    card.Interactive = false;
-                    card.SetHighlight(false);
-                }
-            }
+            EndRearrangeWithoutReset();
         }
 
         // The side whose order has changed, or -1.
@@ -491,10 +723,15 @@ namespace Compile.Client.Screens
             if (!_rearranging || Covered)
                 return;
             var side = local ? 0 : 1;
+            if (!_rearrangeAllowed[side])
+            {
+                App.Hud.Toast(local ? "Rearrange your opponent's Protocols." : "Rearrange your own Protocols.");
+                return;
+            }
             if (_pickSide != side)
             {
                 if (_pickSide >= 0)
-                    _rearrangeSlots[_pickSide][_pickSlot].SetHighlight(false);
+                    UnpickProtocol();
                 _pickSide = side;
                 _pickSlot = slot;
                 _rearrangeSlots[side][slot].SetHighlight(true, Palette.Accent);
@@ -502,13 +739,15 @@ namespace Compile.Client.Screens
             }
 
             var other = _pickSlot;
-            _rearrangeSlots[side][other].SetHighlight(false);
-            _pickSide = _pickSlot = -1;
+            UnpickProtocol();
             if (other == slot)
                 return;
 
             // Only one player's Protocols can be rearranged: changing this side puts the other one back.
+            // A swap is always one swap from where they started.
             ResetSide(1 - side);
+            if (_swapOnly)
+                ResetSide(side);
             var slots = _rearrangeSlots[side];
             var order = _rearrangeOrder[side];
             (slots[other], slots[slot]) = (slots[slot], slots[other]);
@@ -516,12 +755,15 @@ namespace Compile.Client.Screens
             App.Mat.PreviewProtocolSlot(slots[other], side == 0, other);
             App.Mat.PreviewProtocolSlot(slots[slot], side == 0, slot);
 
-            var confirm = _hud.PromptButton(PromptButtonCount() - 1);
-            if (confirm != null)
-                confirm.Interactable = RearrangedSide() >= 0;
+            if (_confirm != null)
+                _confirm.Interactable = RearrangedSide() >= 0;
         }
 
-        int PromptButtonCount() => (_view.CanUndo ? 1 : 0) + 2;
+        void UnpickProtocol()
+        {
+            _rearrangeSlots[_pickSide][_pickSlot].SetHighlight(true, Palette.CyanDim);
+            _pickSide = _pickSlot = -1;
+        }
 
         void ResetSide(int side)
         {
@@ -545,7 +787,7 @@ namespace Compile.Client.Screens
             var target = side == 0 ? Viewer : GameState.Other(Viewer);
             var order = _rearrangeOrder[side].ToArray();
             EndRearrangeWithoutReset();
-            Submit(new Compile.Engine.Rearrange(Viewer, target, order));
+            Answer(new Compile.Engine.Rearrange(Viewer, target, order));
         }
 
         // The engine now holds the new order; the next render moves the cards for real.
@@ -650,20 +892,35 @@ namespace Compile.Client.Screens
                     card.Compiled, pinned: true);
         }
 
+        // A face-up card from a panel (a trash, or revealed cards).
+        void ZoomCard(CardInfo info) =>
+            App.Hud.Zoom.ShowCard(info, App.Art.Card(info.Protocol, info.PrintedValue), App.Cards.GetCard(info.CardId),
+                faceUp: true, hiddenFromViewer: false, pinned: true);
+
         void ShowTrash(bool local)
         {
             if (Covered)
                 return;
             var side = local ? _view.Local : _view.Opponent;
-            _hud.ShowTrash(local ? "Your trash" : $"{side.Name}'s trash", side.Trash,
-                info => App.Hud.Zoom.ShowCard(info, App.Art.Card(info.Protocol, info.PrintedValue), App.Cards.GetCard(info.CardId),
-                    faceUp: true, hiddenFromViewer: false, pinned: true));
+            _hud.ShowTrash(local ? "Your trash" : $"{side.Name}'s trash", side.Trash, ZoomCard);
         }
 
         // ---------- Debug ----------
 
         void AddDebugActions()
         {
+            _hud.AddDebugAction("Card effects…", _hud.ShowEffectsMenu);
+            foreach (var effect in DebugEffects.All)
+            {
+                var key = effect.Key;
+                _hud.AddDebugEffect(effect.Group, effect.Label, () =>
+                {
+                    if (Covered)
+                        return;
+                    Select(-1, true);
+                    Submit(new DebugEffect(Viewer, key));
+                });
+            }
             _hud.AddDebugAction("Auto-play a move", _match.AutoPlayViewer);
             _hud.AddDebugAction("Auto-play your turn", () =>
             {

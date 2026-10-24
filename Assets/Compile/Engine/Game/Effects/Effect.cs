@@ -293,9 +293,9 @@ namespace Compile.Engine
         public Op May(string option, int? chooser = null) =>
             new Op(op => Game.OptionOp(this, op, option, new[] { option }, optional: true, Seat(chooser)));
 
-        // op.Line is the field line picked.
-        public Op ChooseLine(string prompt, IEnumerable<int> fieldLines, int? chooser = null) =>
-            new Op(op => Game.ChooseLineOp(this, op, prompt, fieldLines.ToList(), Seat(chooser)));
+        // op.Line is the field line picked. If optional, the chooser may decline (op isn't Done).
+        public Op ChooseLine(string prompt, IEnumerable<int> fieldLines, int? chooser = null, bool optional = false) =>
+            new Op(op => Game.ChooseLineOp(this, op, prompt, fieldLines.ToList(), Seat(chooser), optional));
 
         // "Each": one effect per item, one at a time, in the order the active player picks. The items are
         // fixed when it starts; each per-item effect checks its card is still there.

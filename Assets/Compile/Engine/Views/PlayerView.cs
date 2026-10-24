@@ -119,6 +119,7 @@ namespace Compile.Engine.Views
         public bool Optional { get; set; }
         public ChoiceSide Side { get; set; }                // Rearrange and Swap
         public LinePurpose Purpose { get; set; }            // Line
+        public string Verb { get; set; }                    // FieldCards and HandCards: what happens to the picks ("Discard", "Flip", ...)
         public bool FaceUpAllowed { get; set; }             // Play
         public bool FaceDownAllowed { get; set; }           // Play
         public string SourceCardId { get; set; }            // the card whose text asks ("Fire_0"), if any

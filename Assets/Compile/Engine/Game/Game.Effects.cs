@@ -299,7 +299,7 @@ namespace Compile.Engine
 
         // Asks for min..max of these cards and passes the picks on. With no real choice (everything must be
         // picked) it doesn't ask; with nothing to pick, nothing happens.
-        void PickCards(Effect e, int chooser, ChoiceKind kind, string prompt, List<CardInstance> valid, int min, int max,
+        void PickCards(Effect e, int chooser, ChoiceKind kind, string verb, string prompt, List<CardInstance> valid, int min, int max,
             bool optional, Action<List<CardInstance>> then)
         {
             if (valid.Count == 0)
@@ -322,6 +322,7 @@ namespace Compile.Engine
                 Min = min,
                 Max = max,
                 Optional = optional,
+                Verb = verb,
                 Source = e.Source,
             });
         }
@@ -351,7 +352,7 @@ namespace Compile.Engine
         {
             var hand = State.Players[seat].HandCards.ToList();
             var prompt = max == int.MaxValue ? $"Discard {min} or more cards" : $"Discard {Plural(min, "card")}";
-            PickCards(e, seat, ChoiceKind.HandCards, prompt, hand, min, max, optional: false, cards =>
+            PickCards(e, seat, ChoiceKind.HandCards, "Discard", prompt, hand, min, max, optional: false, cards =>
             {
                 Discard(seat, cards.Select(c => c.Id).ToList());
                 foreach (var card in cards)
@@ -364,7 +365,7 @@ namespace Compile.Engine
         internal void FlipOp(Effect e, Op op, Target target, int count, bool optional, int chooser)
         {
             var valid = Candidates(e, target).Where(CanFlip).ToList();
-            PickCards(e, chooser, ChoiceKind.FieldCards, Prompt(e, "Flip", target, count, optional, chooser), valid, count, count, optional,
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Flip", Prompt(e, "Flip", target, count, optional, chooser), valid, count, count, optional,
                 cards => FlipCards(e, op, cards));
         }
 
@@ -425,7 +426,7 @@ namespace Compile.Engine
         internal void ShiftOp(Effect e, Op op, Target target, int toLine, bool optional, int chooser)
         {
             var valid = Candidates(e, target).Where(c => toLine < 0 || FieldLineOf(c) != toLine).ToList();
-            PickCards(e, chooser, ChoiceKind.FieldCards, Prompt(e, "Shift", target, 1, optional, chooser), valid, 1, 1, optional,
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Shift", Prompt(e, "Shift", target, 1, optional, chooser), valid, 1, 1, optional,
                 cards => ShiftCards(e, op, cards, toLine, chooser));
         }
 
@@ -493,7 +494,7 @@ namespace Compile.Engine
 
         internal void DeleteOp(Effect e, Op op, Target target, int count, bool optional, int chooser)
         {
-            PickCards(e, chooser, ChoiceKind.FieldCards, Prompt(e, "Delete", target, count, optional, chooser), Candidates(e, target), count, count, optional,
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Delete", Prompt(e, "Delete", target, count, optional, chooser), Candidates(e, target), count, count, optional,
                 cards => DeleteCards(e, op, cards));
         }
 
@@ -516,7 +517,7 @@ namespace Compile.Engine
 
         internal void ReturnOp(Effect e, Op op, Target target, int count, bool optional, int chooser)
         {
-            PickCards(e, chooser, ChoiceKind.FieldCards, Prompt(e, "Return", target, count, optional, chooser), Candidates(e, target), count, count, optional,
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Return", Prompt(e, "Return", target, count, optional, chooser), Candidates(e, target), count, count, optional,
                 cards => ReturnCards(e, op, cards));
         }
 
@@ -655,13 +656,13 @@ namespace Compile.Engine
 
         internal void RevealFieldOp(Effect e, Op op, Target target, int chooser)
         {
-            PickCards(e, chooser, ChoiceKind.FieldCards, $"Reveal {target.Describe(e, 1, chooser, false)}", Candidates(e, target), 1, 1, optional: false,
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Reveal", $"Reveal {target.Describe(e, 1, chooser, false)}", Candidates(e, target), 1, 1, optional: false,
                 cards => RevealCards(e, op, cards[0].Owner, cards));
         }
 
         internal void RevealFromHandOp(Effect e, Op op, int seat, int count)
         {
-            PickCards(e, seat, ChoiceKind.HandCards, $"Reveal {Plural(count, "card")} from your hand", State.Players[seat].HandCards.ToList(), count, count,
+            PickCards(e, seat, ChoiceKind.HandCards, "Reveal", $"Reveal {Plural(count, "card")} from your hand", State.Players[seat].HandCards.ToList(), count, count,
                 optional: false, cards => RevealCards(e, op, seat, cards));
         }
 
@@ -685,7 +686,7 @@ namespace Compile.Engine
         internal void GiveOp(Effect e, Op op, int seat, int count)
         {
             var hand = State.Players[seat].HandCards;
-            PickCards(e, seat, ChoiceKind.HandCards, $"Give {Plural(count, "card")} to your opponent", hand.ToList(), count, count, optional: false, cards =>
+            PickCards(e, seat, ChoiceKind.HandCards, "Give", $"Give {Plural(count, "card")} to your opponent", hand.ToList(), count, count, optional: false, cards =>
             {
                 var to = GameState.Other(seat);
                 var refs = cards.Select(c => new CardRef(c)).ToList();
@@ -756,7 +757,7 @@ namespace Compile.Engine
             });
         }
 
-        internal void ChooseLineOp(Effect e, Op op, string prompt, List<int> fieldLines, int chooser)
+        internal void ChooseLineOp(Effect e, Op op, string prompt, List<int> fieldLines, int chooser, bool optional)
         {
             void Picked(int line)
             {
@@ -766,15 +767,21 @@ namespace Compile.Engine
 
             if (fieldLines.Count == 0)
                 return;
-            if (fieldLines.Count == 1)
+            if (fieldLines.Count == 1 && !optional)
             {
                 Picked(fieldLines[0]);
                 return;
             }
-            Ask(new PendingChoice(chooser, ChoiceKind.Line, prompt, answer => Picked(GameState.ToField(chooser, ((AnswerChoice)answer).Line)))
+            Ask(new PendingChoice(chooser, ChoiceKind.Line, prompt, answer =>
+            {
+                var a = (AnswerChoice)answer;
+                if (!a.Decline)
+                    Picked(GameState.ToField(chooser, a.Line));
+            })
             {
                 ValidLines = fieldLines.Select(l => GameState.ToLocal(chooser, l)).ToList(),
                 Purpose = LinePurpose.Choose,
+                Optional = optional,
                 Source = e.Source,
             });
         }

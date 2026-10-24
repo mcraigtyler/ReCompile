@@ -280,7 +280,7 @@ Resolution rules the engine enforces (from the Codex):
 
 ### Choices and suspension
 
-The engine never blocks. When a decision is needed it stores a `PendingChoice` (seat, kind, prompt, valid cards and lines, options, min/max, optional, and for some kinds a target player, line purpose, allowed orientations, and the card asking and the card it's about) and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
+The engine never blocks. When a decision is needed it stores a `PendingChoice` (seat, kind, prompt, valid cards and lines, options, min/max, optional, and for some kinds a target player, line purpose, what happens to picked cards (`Verb`: "Discard", "Flip", …), allowed orientations, and the card asking and the card it's about) and returns. The controller sends the prompt to that player, waits for an answer, validates it, and resumes. This keeps networking simple and makes an AI player a matter of answering the same prompts.
 
 | Choice kind | Used for | Answered with |
 |---|---|---|

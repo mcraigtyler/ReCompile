@@ -20,6 +20,8 @@ namespace Compile.Client.Board
         const float StackMarginPx = 26f;
         const float StepPx = 228f;        // leaves a covered card's value and top command visible
         const float MinStepPx = 110f;     // long stacks squeeze down to this, then run off the mat onto the desk
+        const float RevealSeconds = 2.2f; // a revealed card stays face-up at least this long, even if its text finished at once
+        static readonly Color Dimmed = new Color(0.42f, 0.4f, 0.48f, 1f);
 
         // Beside the mat, in table units (local side; the opponent's are mirrored).
         static readonly Vector2 DeckSpot = new Vector2(9.1f, -9.6f);
@@ -30,6 +32,9 @@ namespace Compile.Client.Board
         readonly Dictionary<int, CardView> _cards = new Dictionary<int, CardView>();
         readonly Dictionary<int, CardInfo> _info = new Dictionary<int, CardInfo>();
         readonly LaneTarget[] _lanes = new LaneTarget[3];
+        readonly LaneTarget[] _opponentLanes = new LaneTarget[3];
+        readonly Dictionary<int, (Sprite face, float until)> _reveals = new Dictionary<int, (Sprite, float)>();
+        readonly HashSet<int> _trashIds = new HashSet<int>();
         readonly LineChip[] _chips = new LineChip[3];
         readonly DeskPile[] _decks = new DeskPile[2];
         readonly DeskPile[] _trashes = new DeskPile[2];
@@ -54,7 +59,9 @@ namespace Compile.Client.Board
 
         readonly HashSet<CardView> _hookedProtocols = new HashSet<CardView>();
 
-        public CardInfo InfoFor(CardView card) => card != null && _info.TryGetValue(card.InstanceId, out var info) ? info : null;
+        public CardInfo InfoFor(CardView card) => card != null ? InfoFor(card.InstanceId) : null;
+
+        public CardInfo InfoFor(int instanceId) => _info.TryGetValue(instanceId, out var info) ? info : null;
 
         public void Init(MatView mat, CardArtLibrary art, Theme theme)
         {
@@ -67,10 +74,17 @@ namespace Compile.Client.Board
 
             for (var line = 0; line < 3; line++)
             {
-                _lanes[line] = LaneTarget.Create(_overlayLayer, line, theme);
+                // Lines are shared columns: the opponent's half of line L is their own lane 2 - L, turned around.
+                _lanes[line] = LaneTarget.Create(_overlayLayer, $"Lane{line}", MatLayout.LocalLaneCanvasRect(line), theme);
+                var opponentRect = MatLayout.LocalLaneCanvasRect(2 - line);
+                _opponentLanes[line] = LaneTarget.Create(_overlayLayer, $"OpponentLane{line}",
+                    new Rect(-opponentRect.max, opponentRect.size), theme);
                 var index = line;
-                _lanes[line].Clicked += () => LaneClicked?.Invoke(index);
-                _lanes[line].Dropped += () => LaneDropped?.Invoke(index);
+                foreach (var lane in new[] { _lanes[line], _opponentLanes[line] })
+                {
+                    lane.Clicked += () => LaneClicked?.Invoke(index);
+                    lane.Dropped += () => LaneDropped?.Invoke(index);
+                }
                 _chips[line] = LineChip.Create(_overlayLayer, line, theme);
             }
 
@@ -99,7 +113,8 @@ namespace Compile.Client.Board
             ShowLanes(null);
         }
 
-        public void Render(PlayerView view)
+        // returned: ids of field cards that went back to a hand (they glide off toward it instead of to the trash).
+        public void Render(PlayerView view, ICollection<int> returned = null)
         {
             _view = view;
             _mat.ShowProtocols(true, view.Lines.Select(l => l.LocalProtocol.Name).ToList(), view.Lines.Select(l => l.LocalProtocol.Compiled).ToList());
@@ -122,12 +137,20 @@ namespace Compile.Client.Board
 
             foreach (var id in _cards.Keys.Where(id => !seen.Contains(id)).ToList())
             {
-                // Cards that left the field (deleted, returned, compiled) fly to their owner's trash.
+                // Cards that left the field fly to their owner's trash (deleted, compiled) or hand (returned).
                 var card = _cards[id];
                 var owner = _info[id].LocalOwner;
                 card.Interactive = false;
-                card.MoveTo(Spot(TrashSpot, owner), owner ? 0f : 180f, 0.5f, 0.4f);
-                card.gameObject.AddComponent<DestroyAfter>().Seconds = 0.45f;
+                card.SetHighlight(false);
+                card.SetBadge(null, Color.clear);
+                if (returned != null && returned.Contains(id))
+                {
+                    var edge = MatLayout.SizePx.y / 2f + 700f;
+                    card.MoveTo(new Vector2(card.Rect.anchoredPosition.x, owner ? -edge : edge), owner ? 0f : 180f, 0.6f, 0.5f);
+                }
+                else
+                    card.MoveTo(Spot(TrashSpot, owner), owner ? 0f : 180f, 0.5f, 0.4f);
+                card.gameObject.AddComponent<DestroyAfter>().Seconds = 0.55f;
                 _cards.Remove(id);
                 _info.Remove(id);
             }
@@ -141,6 +164,9 @@ namespace Compile.Client.Board
                 var top = side.Trash.Count > 0 ? side.Trash[side.Trash.Count - 1] : null;
                 _trashes[seat].SetFace(top != null ? _art.Card(top.Protocol, top.PrintedValue) : null);
             }
+            // Remembered so a card coming back out of a trash (an undone delete) starts from there.
+            _trashIds.Clear();
+            _trashIds.UnionWith(view.Local.Trash.Concat(view.Opponent.Trash).Select(c => c.InstanceId));
 
             var controlY = view.Control == ControlHolder.Local ? -3.4f : view.Control == ControlHolder.Opponent ? 3.4f : 0f;
             var controlTarget = new Vector2(ControlSpot.x, controlY) * MatLayout.PixelsPerUnit;
@@ -165,7 +191,11 @@ namespace Compile.Client.Board
                 var px = local ? new Vector2(x, y) : new Vector2(x, MatLayout.SizePx.y - y);
                 var position = MatLayout.ToCanvas(px.x, px.y);
                 var rotation = local ? 0f : 180f;
-                var face = info.FaceUp && !info.IsHidden ? _art.Card(info.Protocol, info.PrintedValue) : _theme.cardBack;
+                // A revealed face-down card shows its face to both players while it's revealed.
+                var held = _reveals.TryGetValue(info.InstanceId, out var reveal);
+                var revealed = info.Revealed || held;
+                var face = (info.FaceUp || info.Revealed) && !info.IsHidden ? _art.Card(info.Protocol, info.PrintedValue)
+                    : held ? reveal.face : _theme.cardBack;
 
                 if (!_cards.TryGetValue(info.InstanceId, out var card))
                 {
@@ -175,8 +205,11 @@ namespace Compile.Client.Board
                     card.Clicked += c => CardClicked?.Invoke(c);
                     card.Hovered += (c, on) => CardHovered?.Invoke(c, on);
                     card.LongPressed += c => CardLongPressed?.Invoke(c);
-                    // New cards arrive from their owner's side of the table.
-                    card.Place(position + new Vector2(0f, local ? -900f : 900f), rotation, CardScale);
+                    // New cards arrive from their owner's side of the table, or out of the trash (an undone delete).
+                    if (_trashIds.Contains(info.InstanceId))
+                        card.Place(Spot(TrashSpot, info.LocalOwner), rotation, 0.5f);
+                    else
+                        card.Place(position + new Vector2(0f, local ? -900f : 900f), rotation, CardScale);
                     card.MoveTo(position, rotation, CardScale, 0.35f);
                     _cards[info.InstanceId] = card;
                 }
@@ -188,6 +221,7 @@ namespace Compile.Client.Board
                         card.MoveTo(position, rotation, CardScale, 0.3f);
                 }
 
+                card.SetBadge(revealed && !info.FaceUp ? "REVEALED" : null, Palette.Cyan);
                 _info[info.InstanceId] = info;
                 card.name = info.CardId ?? "Hidden";
                 card.transform.SetSiblingIndex(_stackLayer.childCount - 1);
@@ -226,22 +260,52 @@ namespace Compile.Client.Board
             Destroy(gameObject);
         }
 
-        // Shows which lanes the selected card can go to. Pass null to hide the lanes.
-        public void ShowLanes(bool[] legal)
+        // Shows which lines can be chosen, on the viewer's side, the opponent's, or both (a whole line).
+        // Pass null to hide the lanes.
+        public void ShowLanes(bool[] legal, bool local = true, bool opponent = false)
         {
             for (var line = 0; line < 3; line++)
-                _lanes[line].SetState(legal == null ? LaneTarget.State.Hidden : legal[line] ? LaneTarget.State.Legal : LaneTarget.State.Illegal);
+            {
+                var state = legal == null ? LaneTarget.State.Hidden : legal[line] ? LaneTarget.State.Legal : LaneTarget.State.Illegal;
+                _lanes[line].SetState(local ? state : LaneTarget.State.Hidden);
+                _opponentLanes[line].SetState(opponent ? state : LaneTarget.State.Hidden);
+            }
         }
 
-        // Highlights the cards that can be chosen; everything else stops responding to clicks.
-        public void ShowChoice(IReadOnlyCollection<int> valid)
+        // Highlights the cards that can be chosen (picked ones in the accent color) and dims the rest, which
+        // stop responding to clicks. subject is a card the question is about (e.g. the one being shifted).
+        // Pass null and 0 to show the field normally.
+        public void ShowChoice(IReadOnlyCollection<int> valid, ICollection<int> picked = null, int subject = 0)
         {
+            var choosing = valid != null && valid.Count > 0;
             foreach (var (id, card) in _cards)
             {
-                var on = valid != null && valid.Contains(id);
+                var on = choosing && valid.Contains(id);
                 card.Interactive = on;
-                card.SetHighlight(on, Palette.Cyan);
+                if (id == subject)
+                    card.SetHighlight(true, Palette.Accent);
+                else
+                    card.SetHighlight(on, picked != null && picked.Contains(id) ? Palette.Accent : Palette.Cyan);
+                card.SetTint(choosing && !on && id != subject ? Dimmed : Color.white);
             }
+        }
+
+        // Keeps a revealed card face-up for a moment, so a reveal that ends straight away can still be seen.
+        public void HoldReveal(int instanceId, Sprite face)
+        {
+            _reveals[instanceId] = (face, Time.unscaledTime + RevealSeconds);
+            if (_view != null)
+                Render(_view);
+        }
+
+        void Update()
+        {
+            if (_reveals.Count == 0 || _reveals.Values.All(r => r.until > Time.unscaledTime))
+                return;
+            foreach (var id in _reveals.Where(r => r.Value.until <= Time.unscaledTime).Select(r => r.Key).ToList())
+                _reveals.Remove(id);
+            if (_view != null)
+                Render(_view);
         }
 
         public IEnumerable<CardView> Cards => _cards.Values;
@@ -268,10 +332,9 @@ namespace Compile.Client.Board
         public event Action Clicked;
         public event Action Dropped;
 
-        public static LaneTarget Create(RectTransform parent, int line, Theme theme)
+        public static LaneTarget Create(RectTransform parent, string name, Rect rect, Theme theme)
         {
-            var rt = Ui.Rect($"Lane{line}", parent);
-            var rect = MatLayout.LocalLaneCanvasRect(line);
+            var rt = Ui.Rect(name, parent);
             rt.anchoredPosition = rect.center;
             rt.sizeDelta = rect.size;
 

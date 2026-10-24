@@ -358,15 +358,39 @@ namespace Compile.Engine.Tests
                 hand 0: Fire_1
                 deck 0: Fire_2 Fire_3
                 trash 0: Death_1");
-            game.Debug("play-top-each-line");
-            var result = game.Do(AnswerChoice.WithOrder(0, 0, 1, 2));
+            game.Debug("play-top-chosen-lines");
+            var played = game.Do(AnswerChoice.WithLine(0, 0)).Events.OfType<CardPlayed>().ToList();
+            played.AddRange(game.Do(AnswerChoice.WithLine(0, 1)).Events.OfType<CardPlayed>());
+            game.Do(AnswerChoice.WithLine(0, 2));
 
             Assert.That(game.StackOf(0, 0), Is.EqualTo(new[] { "Fire_2" }));
             Assert.That(game.StackOf(1, 0), Is.EqualTo(new[] { "Fire_3" }));
             Assert.That(game.State.Lines[2].Stack(0), Is.Empty);
             Assert.That(game.Find("Fire_2").FaceUp, Is.False);
-            Assert.That(result.Events.OfType<CardPlayed>().All(p => p.FromDeck), Is.True);
+            Assert.That(played.All(p => p.FromDeck), Is.True);
             Assert.That(game.State.Players[0].Trash.Names(), Is.EqualTo(new[] { "Death_1" }));
+            Assert.That(game.Pending, Is.Null, "every line has had its turn");
+        }
+
+        [TestCase(new[] { 1 })]
+        [TestCase(new[] { 2, 0 })]
+        public void PlayTopOfDeck_OnlyInTheLinesChosen(int[] lines)
+        {
+            var game = Load(@"
+                hand 0: Fire_1
+                deck 0: Fire_2 Fire_3 Fire_4");
+            game.Debug("play-top-chosen-lines");
+            Assert.That(game.Pending.Optional, Is.False, "at least one line");
+            foreach (var line in lines)
+                game.Do(AnswerChoice.WithLine(0, line));
+            Assert.That(game.Pending.Optional, Is.True, "then another line, or done");
+            Assert.That(game.Pending.ValidLines, Is.EquivalentTo(Enumerable.Range(0, 3).Except(lines)), "a line only once");
+            game.Do(AnswerChoice.Declined(0));
+
+            Assert.That(game.Pending, Is.Null);
+            for (var line = 0; line < 3; line++)
+                Assert.That(game.State.Lines[line].Stack(0), Has.Count.EqualTo(lines.Contains(line) ? 1 : 0), $"line {line}");
+            Assert.That(game.State.Players[0].Deck, Has.Count.EqualTo(3 - lines.Length));
         }
 
         [Test]
@@ -478,6 +502,48 @@ namespace Compile.Engine.Tests
             game.Do(AnswerChoice.WithOption(0, 0));
             Assert.That(game.State.Players[0].Hand, Has.Count.EqualTo(2));
             Assert.That(game.State.Lines[0].Stack(0), Is.Empty, "drew, so deleted the only card");
+        }
+
+        // ---- What the board is told ----
+
+        [TestCase("discard-1", ChoiceKind.HandCards, "Discard")]
+        [TestCase("give-1", ChoiceKind.HandCards, "Give")]
+        [TestCase("reveal-from-hand", ChoiceKind.HandCards, "Reveal")]
+        [TestCase("flip-1", ChoiceKind.FieldCards, "Flip")]
+        [TestCase("shift-1", ChoiceKind.FieldCards, "Shift")]
+        [TestCase("delete-1", ChoiceKind.FieldCards, "Delete")]
+        [TestCase("return-1", ChoiceKind.FieldCards, "Return")]
+        [TestCase("reveal-face-down", ChoiceKind.FieldCards, "Reveal")]
+        public void CardChoice_SaysWhatHappensToThePicks(string effect, ChoiceKind kind, string verb)
+        {
+            var game = Load(@"
+                line 0: ~Fire_1 | ~Metal_2
+                line 1: Speed_1 | Water_1
+                hand 0: Fire_3 Speed_3
+                hand 1: Water_0");
+            game.Debug(effect);
+            var choice = game.ViewFor(0).Choice;
+            Assert.That(choice.Kind, Is.EqualTo(kind));
+            Assert.That(choice.Verb, Is.EqualTo(verb));
+        }
+
+        [Test]
+        public void ClearCache_SaysThePicksAreDiscarded()
+        {
+            var game = Load(@"
+                hand 0: Fire_1 Fire_2 Fire_3 Speed_1 Speed_2 Speed_3 Death_1
+                hand 1: Water_0");
+            game.Play("Fire_1", 0);
+            var choice = game.ViewFor(0).Choice;
+            Assert.That(choice.Kind, Is.EqualTo(ChoiceKind.HandCards));
+            Assert.That(choice.Verb, Is.EqualTo("Discard"));
+        }
+
+        [Test]
+        public void DebugEffects_AllHaveAGroupAndAUniqueKey()
+        {
+            Assert.That(DebugEffects.All.Select(d => d.Key), Is.Unique);
+            Assert.That(DebugEffects.All.Where(d => string.IsNullOrEmpty(d.Group)).Select(d => d.Key), Is.Empty);
         }
     }
 }

@@ -186,6 +186,7 @@ namespace Compile.Engine
                 ValidCards = hand.Select(c => c.Id).ToList(),
                 Min = excess,
                 Max = excess,
+                Verb = "Discard",
             });
         }
 

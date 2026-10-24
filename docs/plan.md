@@ -344,7 +344,7 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 **Debug effects**
 
-- [x] A dev-only `DebugEffect` intent runs any of the 33 entries in `DebugEffects.All` ("Flip 1 card", "Shift 1 of your opponent's covered cards", …) for the active player, in their Action step or after it, without using up the action
+- [x] A dev-only `DebugEffect` intent runs any of the 34 entries in `DebugEffects.All` ("Flip 1 card", "Shift 1 of your opponent's covered cards", …) for the active player, in their Action step or after it, without using up the action
 
 **Tests**
 
@@ -365,17 +365,20 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 **Goal:** every effect from 4b can be triggered and answered on the board in a hot-seat game. Depends on 4a and 4b.
 
-- [ ] Debug menu lists every debug effect, as the `BoardSandbox` debug actions do today
-- [ ] Field cards: valid ones glow and the rest dim (exists), now with several picks and a Confirm button
-- [ ] Hand cards and lines for effects (discard, give, choose a card to play, shift destinations), reusing the 4a UI
-- [ ] Options: buttons in the prompt panel
-- [ ] Swap: a "swap 2" mode of the rearrange flow
-- [ ] Order: a list in the prompt, tap to order
-- [ ] Reveal: revealed cards flip up briefly with a banner; a revealed hand opens in a panel like the trash browser
-- [ ] Flip, shift, delete, return, give, and take animate with the existing `CardView` glide and flip (richer animation is Phase 7)
-- [ ] Undo during effects: the Undo button takes back effect choices too, and cards glide back to where they were; when a barrier blocks it, the button is disabled with a short reason ("You drew cards this turn")
+- [x] Debug menu: **Card effects…** opens a scrolling panel of all 34 debug effects under headings (`DebugEffects.Entry.Group`); choosing one runs it for the player at the screen
+- [x] Field cards: valid ones glow and the rest dim and stop responding; one card is answered by tapping it, several are picked (accent glow) and confirmed with "Confirm (n of N)"
+- [x] Hand cards: picks rise with a label saying what happens to them (DISCARD, GIVE, REVEAL), from the choice's new `Verb`. The prompt hint uses it too ("Tap a highlighted card to delete it")
+- [x] Lines: lanes light up on the side the question is about: your own to compile, the moving card's side to shift (the card glows), both halves for "1 line". The opponent's half of each line is now a lane target too
+- [x] Play ("play 1 card"): pick one of the allowed hand cards, choose a side if both are allowed, then tap or drop on an allowed lane
+- [x] Options: a button per option; "may" adds Don't, and other optional questions Skip
+- [x] Rearrange and Swap: the rearrange flow only lets you move the side the text names; swap mode starts each swap from the original order, so the answer is always one swap; "Don't rearrange" only shows when it's optional
+- [x] Order: a button per effect, numbered as you tap ("1: left line"); cards that line up with the options can be tapped instead; the last one fills itself in; Start over and Confirm
+- [x] Reveal: revealed face-down cards turn face-up with a REVEALED badge for as long as the text runs, and at least 2 seconds, with a toast saying what was revealed. A revealed hand (or hand card) of the opponent opens in a panel like the trash browser; your own reveals are a toast
+- [x] Animation with the existing `CardView` glide and flip: flips flip, shifts glide, deletes fly to the trash, returns glide off toward their owner's hand, given and taken cards leave your hand upward and arrive from above (richer animation is Phase 7)
+- [x] Undo during effects: Undo is in every prompt and takes back effect choices; cards glide back, and a card that comes back out of a trash starts from it. When a barrier blocks undo, the reason shows in the prompt and on the summary strip (tall screens) as well as under the buttons (wide)
+- [x] Tests: each card choice reports its `Verb` (including Clear Cache), and every debug effect has a group and a unique key
 
-**Done when:** every effect can be triggered from the Debug menu and answered on the board in wide and tall layouts, in hot-seat in the Editor and in a WebGL build.
+**Done when:** every effect can be triggered from the Debug menu and answered on the board in wide and tall layouts, in hot-seat in the Editor and in a WebGL build. ⏳ The code is in and compiles; the play-through of all 34 effects in both layouts, in the Editor and a WebGL build, is still to do.
 
 ---
 

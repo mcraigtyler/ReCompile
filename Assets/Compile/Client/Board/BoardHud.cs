@@ -45,6 +45,9 @@ namespace Compile.Client.Board
         RectTransform _trashBrowser;
         RectTransform _trashGrid;
         TextMeshProUGUI _trashTitle;
+        RectTransform _effectsMenu;
+        RectTransform _effectsList;
+        string _lastEffectGroup;
         CardArtLibrary _art;
         Theme _theme;
         bool _wide;
@@ -54,6 +57,7 @@ namespace Compile.Client.Board
         // Tall screens use two thin strips instead of corner boxes, so the board stays visible.
         RectTransform _tallTop, _tallBottom;
         TextMeshProUGUI _tallOpponentText, _tallLocalText;
+        string _tallLocalSummary = "";
         ButtonSkin _tallFaceUp, _tallFaceDown, _tallRefresh, _tallLogToggle, _tallUndo, _tallEndTurn;
 
         public bool Wide => _wide;
@@ -161,6 +165,7 @@ namespace Compile.Client.Board
             Hand = HandView.Create(_root, _art, _theme);
 
             BuildTrashBrowser();
+            BuildEffectsMenu();
             BuildHandoff();
             Layout(Screen.width >= Screen.height);
         }
@@ -252,8 +257,9 @@ namespace Compile.Client.Board
 
             _tallOpponentText.text = $"<b>{view.Opponent.Name}</b>{ControlTag(view.Control == ControlHolder.Opponent)}  " +
                                      $"<color=#A397BA>Hand</color> {view.Opponent.HandCount}  <color=#A397BA>Deck</color> {view.Opponent.DeckCount}  <color=#A397BA>Trash</color> {view.Opponent.Trash.Count}";
-            _tallLocalText.text = $"<b>You</b>{ControlTag(view.Control == ControlHolder.Local)}  " +
-                                  $"<color=#A397BA>Deck</color> {view.Local.DeckCount}  <color=#A397BA>Trash</color> {view.Local.Trash.Count}";
+            _tallLocalSummary = $"<b>You</b>{ControlTag(view.Control == ControlHolder.Local)}  " +
+                                $"<color=#A397BA>Deck</color> {view.Local.DeckCount}  <color=#A397BA>Trash</color> {view.Local.Trash.Count}";
+            _tallLocalText.text = _tallLocalSummary;
 
             var log = new StringBuilder();
             var shown = _wide ? 4 : 8;      // on wide screens the log shares the right side with the actions
@@ -276,6 +282,10 @@ namespace Compile.Client.Board
 
             _tallUndo.Interactable = canUndo;
             _tallEndTurn.Interactable = canEndTurn;
+            // Tall screens have no room for the hint under the buttons; it takes the summary's place instead.
+            _tallLocalText.text = canEndTurn && _undoHint.text.Length > 0
+                ? $"<size=85%><color=#A397BA>Can't undo: {undoBlockedReason}</color></size>"
+                : _tallLocalSummary;
             foreach (var b in new[] { _tallFaceUp, _tallFaceDown, _tallRefresh })
                 b.gameObject.SetActive(!canEndTurn);
             _tallUndo.gameObject.SetActive(canEndTurn);
@@ -377,6 +387,52 @@ namespace Compile.Client.Board
             _debugMenu.SetAsLastSibling();
         }
 
+        // ---------- Card effects (Debug) ----------
+        // Every debug effect, under its heading, in a scrolling panel; choosing one closes the panel.
+
+        void BuildEffectsMenu()
+        {
+            var (overlay, panel) = Overlay("EffectsMenu", new Vector2(0.06f, 0.05f), new Vector2(0.94f, 0.95f));
+            _effectsMenu = overlay;
+            var header = Ui.Row(panel, 20f, "Header");
+            header.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().childForceExpandWidth = false;
+            var title = Ui.Text(header, "Card effects", TextStyle.Heading, TextAlignmentOptions.MidlineLeft);
+            Ui.Size(title).flexibleWidth = 1f;
+            Ui.Size(Ui.Button(header, "Close", ButtonStyle.Secondary, () => _effectsMenu.gameObject.SetActive(false)), width: 220f);
+            Ui.Text(panel, "Runs as if a card's text said it, for you. Use one in your Action step or after it; it doesn't use up your action.",
+                TextStyle.Small);
+            _effectsList = ScrollList(panel);
+            _effectsMenu.gameObject.SetActive(false);
+        }
+
+        public void AddDebugEffect(string group, string label, UnityAction action)
+        {
+            if (group != _lastEffectGroup)
+            {
+                _lastEffectGroup = group;
+                if (_effectsList.childCount > 0)
+                    Ui.Spacer(_effectsList, 8f);
+                Ui.Text(_effectsList, group, TextStyle.Label).fontSize = 24f;
+            }
+            var button = Ui.Button(_effectsList, label, ButtonStyle.Quiet, () =>
+            {
+                _effectsMenu.gameObject.SetActive(false);
+                action();
+            });
+            button.Label.fontSize = 26f;
+            button.Label.fontStyle = FontStyles.Normal;
+            button.Label.characterSpacing = 0f;
+            button.Label.textWrappingMode = TextWrappingModes.Normal;
+            button.Label.alignment = TextAlignmentOptions.MidlineLeft;
+            Ui.Size(button, height: 76f);
+        }
+
+        public void ShowEffectsMenu()
+        {
+            _effectsMenu.gameObject.SetActive(true);
+            _effectsMenu.SetAsLastSibling();
+        }
+
         // ---------- Log ----------
 
         void ToggleLog()
@@ -396,58 +452,81 @@ namespace Compile.Client.Board
 
         // ---------- Trash browser ----------
 
-        void BuildTrashBrowser()
+        // A dimmed full-screen overlay holding a panel (anchored between min and max), which stacks its children.
+        (RectTransform overlay, RectTransform panel) Overlay(string name, Vector2 min, Vector2 max)
         {
-            _trashBrowser = Ui.Rect("TrashBrowser", _root);
-            Ui.Stretch(_trashBrowser);
-            var dim = _trashBrowser.gameObject.AddComponent<UnityEngine.UI.Image>();
-            dim.color = new Color(0f, 0f, 0f, 0.7f);
+            var overlay = Ui.Rect(name, _root);
+            Ui.Stretch(overlay);
+            overlay.gameObject.AddComponent<UnityEngine.UI.Image>().color = new Color(0f, 0f, 0f, 0.7f);
 
-            var panel = Ui.Rect("Panel", _trashBrowser);
-            panel.anchorMin = new Vector2(0.08f, 0.1f);
-            panel.anchorMax = new Vector2(0.92f, 0.9f);
+            var panel = Ui.Rect("Panel", overlay);
+            panel.anchorMin = min;
+            panel.anchorMax = max;
             panel.offsetMin = panel.offsetMax = Vector2.zero;
             Ui.Backdrop(panel, Palette.PanelFill, Palette.AccentDim, shadow: false);
             Ui.VStack(panel, 16f, padX: 40, padY: 32);
-            var header = Ui.Row(panel, 20f, "Header");
-            _trashTitle = Ui.Text(header, "", TextStyle.Heading, TextAlignmentOptions.MidlineLeft);
-            Ui.Size(Ui.Button(header, "Close", ButtonStyle.Secondary, () => _trashBrowser.gameObject.SetActive(false)), width: 220f);
-            header.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().childForceExpandWidth = false;
-            Ui.Size(_trashTitle).flexibleWidth = 1f;
+            return (overlay, panel);
+        }
 
-            // ScrollRect > Viewport (Mask + Image) > Content (GridLayoutGroup + ContentSizeFitter).
+        // A vertically scrolling area filling the rest of the panel. Returns the content, which grows to fit:
+        // ScrollRect > Viewport (Mask + Image) > Content (layout group + ContentSizeFitter). With grid, the
+        // content lays out as a grid of cells that size; otherwise it stacks.
+        static RectTransform ScrollList(RectTransform panel, Vector2? grid = null)
+        {
             var scroll = Ui.Rect("Scroll", panel);
             Ui.Size(scroll).flexibleHeight = 1f;
             var viewport = Ui.Rect("Viewport", scroll);
             Ui.Stretch(viewport);
             viewport.gameObject.AddComponent<UnityEngine.UI.Image>().color = Color.white;
             viewport.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic = false;
-            _trashGrid = Ui.Rect("Content", viewport);
-            _trashGrid.anchorMin = new Vector2(0f, 1f);
-            _trashGrid.anchorMax = new Vector2(1f, 1f);
-            _trashGrid.pivot = new Vector2(0.5f, 1f);
-            _trashGrid.sizeDelta = Vector2.zero;
-            var grid = _trashGrid.gameObject.AddComponent<UnityEngine.UI.GridLayoutGroup>();
-            grid.cellSize = CardView.SizePx * 0.5f;
-            grid.spacing = new Vector2(16f, 16f);
-            _trashGrid.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>().verticalFit =
+            var content = Ui.Rect("Content", viewport);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.sizeDelta = Vector2.zero;
+            if (grid.HasValue)
+            {
+                var layout = content.gameObject.AddComponent<UnityEngine.UI.GridLayoutGroup>();
+                layout.cellSize = grid.Value;
+                layout.spacing = new Vector2(16f, 16f);
+            }
+            else
+                Ui.VStack(content, 10f, padX: 4);
+            content.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>().verticalFit =
                 UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
             var rect = scroll.gameObject.AddComponent<UnityEngine.UI.ScrollRect>();
             rect.viewport = viewport;
-            rect.content = _trashGrid;
+            rect.content = content;
             rect.horizontal = false;
             rect.scrollSensitivity = 40f;
+            return content;
+        }
 
+        void BuildTrashBrowser()
+        {
+            var (overlay, panel) = Overlay("TrashBrowser", new Vector2(0.08f, 0.1f), new Vector2(0.92f, 0.9f));
+            _trashBrowser = overlay;
+            var header = Ui.Row(panel, 20f, "Header");
+            _trashTitle = Ui.Text(header, "", TextStyle.Heading, TextAlignmentOptions.MidlineLeft);
+            Ui.Size(Ui.Button(header, "Close", ButtonStyle.Secondary, () => _trashBrowser.gameObject.SetActive(false)), width: 220f);
+            header.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>().childForceExpandWidth = false;
+            Ui.Size(_trashTitle).flexibleWidth = 1f;
+            _trashGrid = ScrollList(panel, CardView.SizePx * 0.5f);
             _trashBrowser.gameObject.SetActive(false);
         }
 
-        public void ShowTrash(string title, IReadOnlyList<CardInfo> cards, Action<CardInfo> onCardPressed)
+        public void ShowTrash(string title, IReadOnlyList<CardInfo> cards, Action<CardInfo> onCardPressed) =>
+            ShowCards(cards.Count == 0 ? $"{title}: empty" : $"{title} · {cards.Count} card{(cards.Count == 1 ? "" : "s")}",
+                cards.Reverse(), onCardPressed);
+
+        // Face-up cards in a closable panel: a trash (newest first), or cards revealed from a hand.
+        public void ShowCards(string title, IEnumerable<CardInfo> cards, Action<CardInfo> onCardPressed)
         {
             for (var i = _trashGrid.childCount - 1; i >= 0; i--)
                 Destroy(_trashGrid.GetChild(i).gameObject);
 
-            _trashTitle.text = cards.Count == 0 ? $"{title}: empty" : $"{title} · {cards.Count} card{(cards.Count == 1 ? "" : "s")}";
-            foreach (var card in cards.Reverse())
+            _trashTitle.text = title;
+            foreach (var card in cards)
             {
                 var image = Ui.Rect(card.CardId, _trashGrid).gameObject.AddComponent<UnityEngine.UI.Image>();
                 image.sprite = _art.Card(card.Protocol, card.PrintedValue);

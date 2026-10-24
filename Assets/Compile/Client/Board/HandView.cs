@@ -18,8 +18,11 @@ namespace Compile.Client.Board
         const float Spacing = 176f;
         const float SelectedLift = 40f;
         const float RestDrop = 0.56f;     // resting cards sit this far (fraction of their height) below the screen edge
+        const float LeaveHeight = 1400f;  // where cards changing hands come from and go to: up, toward the opponent
 
         readonly Dictionary<int, HandCard> _cards = new Dictionary<int, HandCard>();
+        readonly HashSet<int> _leaving = new HashSet<int>();
+        bool _arrivingFromOpponent;
         readonly List<int> _order = new List<int>();
         readonly HashSet<int> _marked = new HashSet<int>();
         string _markLabel = "";
@@ -53,12 +56,25 @@ namespace Compile.Client.Board
 
         public RectTransform Rect => _rect;
 
+        // Cards changing hands (given or taken) for the next Render: these leave toward the opponent, and new
+        // cards arrive from the opponent rather than from the deck.
+        public void ExpectTransfers(ICollection<int> leaving, bool arrivingFromOpponent)
+        {
+            _leaving.Clear();
+            if (leaving != null)
+                _leaving.UnionWith(leaving);
+            _arrivingFromOpponent = arrivingFromOpponent;
+        }
+
         public void Render(IReadOnlyList<CardInfo> hand)
         {
             var ids = hand.Select(c => c.InstanceId).ToList();
             foreach (var id in _cards.Keys.Where(id => !ids.Contains(id)).ToList())
             {
-                Destroy(_cards[id].gameObject);
+                if (_leaving.Contains(id))
+                    _cards[id].Leave(new Vector2(0f, LeaveHeight));
+                else
+                    Destroy(_cards[id].gameObject);
                 _cards.Remove(id);
             }
 
@@ -68,8 +84,8 @@ namespace Compile.Client.Board
                 if (!_cards.TryGetValue(info.InstanceId, out var card))
                 {
                     card = HandCard.Create(_rect, this, info, _art.Card(info.Protocol, info.PrintedValue), _theme);
-                    // New cards come up from below the screen.
-                    card.Rect.anchoredPosition = new Vector2(0f, -400f);
+                    // New cards come up from below the screen (drawn), or down from the opponent's side.
+                    card.Rect.anchoredPosition = new Vector2(0f, _arrivingFromOpponent ? LeaveHeight : -400f);
                     _cards[info.InstanceId] = card;
                 }
                 card.Info = info;
@@ -78,6 +94,7 @@ namespace Compile.Client.Board
 
             if (!_cards.ContainsKey(Selected))
                 Selected = -1;
+            ExpectTransfers(null, false);
             Arrange();
         }
 
@@ -236,6 +253,20 @@ namespace Compile.Client.Board
             _selected = selected;
             _restDrop = restDrop;
             _glow.enabled = selected;
+        }
+
+        // Glides away (e.g. to the opponent's hand), then is destroyed. It no longer responds.
+        public void Leave(Vector2 to)
+        {
+            _targetPosition = to;
+            _targetRotation = 0f;
+            _restDrop = 0f;
+            _selected = true;
+            _hovered = _dragging = _pressed = false;
+            _glow.enabled = false;
+            SetBadge(null, Color.clear);
+            _group.blocksRaycasts = false;
+            gameObject.AddComponent<DestroyAfter>().Seconds = 0.6f;
         }
 
         // A label across the card (e.g. "FACE-DOWN · 2" or "DISCARD"); null hides it.

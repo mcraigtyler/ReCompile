@@ -12,10 +12,12 @@ namespace Compile.Engine
         {
             public string Key { get; }
             public string Label { get; }
+            public string Group { get; }         // a heading for the Debug menu ("Flip", "Reveal", ...)
             internal Func<Effect, IEnumerable<Op>> Text { get; }
 
-            internal Entry(string key, string label, Func<Effect, IEnumerable<Op>> text)
+            internal Entry(string group, string key, string label, Func<Effect, IEnumerable<Op>> text)
             {
+                Group = group;
                 Key = key;
                 Label = label;
                 Text = text;
@@ -27,55 +29,56 @@ namespace Compile.Engine
         public static IReadOnlyList<Entry> All { get; } = new List<Entry>
         {
             // Draw and discard
-            new Entry("draw-2", "Draw 2 cards", e => One(e.Draw(2))),
-            new Entry("discard-1", "Discard 1 card", e => One(e.Discard(1))),
-            new Entry("discard-any", "Discard 1 or more cards. Draw the amount discarded plus 1", DiscardThenDraw),
-            new Entry("opponent-discards-1", "Your opponent discards 1 card", e => One(e.Discard(1, e.Opponent))),
-            new Entry("refresh", "Refresh", e => One(e.Refresh())),
+            new Entry("Draw and discard", "draw-1", "Draw 1 card", e => One(e.Draw(1))),
+            new Entry("Draw and discard", "draw-2", "Draw 2 cards", e => One(e.Draw(2))),
+            new Entry("Draw and discard", "discard-1", "Discard 1 card", e => One(e.Discard(1))),
+            new Entry("Draw and discard", "discard-any", "Discard 1 or more cards. Draw the amount discarded plus 1", DiscardThenDraw),
+            new Entry("Draw and discard", "opponent-discards-1", "Your opponent discards 1 card", e => One(e.Discard(1, e.Opponent))),
+            new Entry("Draw and discard", "refresh", "Refresh", e => One(e.Refresh())),
 
             // Flip
-            new Entry("flip-1", "Flip 1 card", e => One(e.Flip(Target.Any))),
-            new Entry("flip-opponent-face-up", "Flip 1 of your opponent's face-up cards", e => One(e.Flip(Target.Any.Opponents().FaceUp()))),
-            new Entry("may-flip-face-down", "You may flip 1 face-down card", e => One(e.Flip(Target.Any.FaceDown(), optional: true))),
-            new Entry("flip-own-covered", "You may flip 1 of your face-up covered cards", e => One(e.Flip(Target.Any.Own().FaceUp().Covered(), optional: true))),
-            new Entry("flip-each-face-up", "Flip each face-up card", e => One(e.EachCard(Target.Any.FaceUp(), e.Flip))),
-            new Entry("flip-all-in-line", "Flip all face-up cards in 1 line", FlipAllInLine),
+            new Entry("Flip", "flip-1", "Flip 1 card", e => One(e.Flip(Target.Any))),
+            new Entry("Flip", "flip-opponent-face-up", "Flip 1 of your opponent's face-up cards", e => One(e.Flip(Target.Any.Opponents().FaceUp()))),
+            new Entry("Flip", "may-flip-face-down", "You may flip 1 face-down card", e => One(e.Flip(Target.Any.FaceDown(), optional: true))),
+            new Entry("Flip", "flip-own-covered", "You may flip 1 of your face-up covered cards", e => One(e.Flip(Target.Any.Own().FaceUp().Covered(), optional: true))),
+            new Entry("Flip", "flip-each-face-up", "Flip each face-up card", e => One(e.EachCard(Target.Any.FaceUp(), e.Flip))),
+            new Entry("Flip", "flip-all-in-line", "Flip all face-up cards in 1 line", FlipAllInLine),
 
             // Shift
-            new Entry("shift-1", "Shift 1 card", e => One(e.Shift(Target.Any))),
-            new Entry("shift-opponent-covered", "Shift 1 of your opponent's covered cards", e => One(e.Shift(Target.Any.Opponents().Covered()))),
-            new Entry("shift-all-face-down", "Shift all face-down cards in 1 line to another line", ShiftAllFaceDown),
+            new Entry("Shift", "shift-1", "Shift 1 card", e => One(e.Shift(Target.Any))),
+            new Entry("Shift", "shift-opponent-covered", "Shift 1 of your opponent's covered cards", e => One(e.Shift(Target.Any.Opponents().Covered()))),
+            new Entry("Shift", "shift-all-face-down", "Shift all face-down cards in 1 line to another line", ShiftAllFaceDown),
 
             // Delete and return
-            new Entry("delete-1", "Delete 1 card", e => One(e.Delete(Target.Any))),
-            new Entry("delete-each-line", "Delete 1 card from each line", DeleteFromEachLine),
-            new Entry("delete-all-low", "Delete all cards in 1 line with values of 1 or 2", DeleteAllLow),
-            new Entry("return-1", "Return 1 card", e => One(e.Return(Target.Any))),
-            new Entry("return-own", "Return 1 of your cards", e => One(e.Return(Target.Any.Own()))),
+            new Entry("Delete and return", "delete-1", "Delete 1 card", e => One(e.Delete(Target.Any))),
+            new Entry("Delete and return", "delete-each-line", "Delete 1 card from each line", DeleteFromEachLine),
+            new Entry("Delete and return", "delete-all-low", "Delete all cards in 1 line with values of 1 or 2", DeleteAllLow),
+            new Entry("Delete and return", "return-1", "Return 1 card", e => One(e.Return(Target.Any))),
+            new Entry("Delete and return", "return-own", "Return 1 of your cards", e => One(e.Return(Target.Any.Own()))),
 
             // Reveal
-            new Entry("reveal-face-down", "Reveal 1 face-down card. You may shift or flip that card", RevealThenShiftOrFlip),
-            new Entry("reveal-opponent-hand", "Your opponent reveals their hand", e => One(e.RevealHand(e.Opponent))),
-            new Entry("reveal-from-hand", "Reveal 1 card from your hand", e => One(e.RevealFromHand())),
+            new Entry("Reveal", "reveal-face-down", "Reveal 1 face-down card. You may shift or flip that card", RevealThenShiftOrFlip),
+            new Entry("Reveal", "reveal-opponent-hand", "Your opponent reveals their hand", e => One(e.RevealHand(e.Opponent))),
+            new Entry("Reveal", "reveal-from-hand", "Reveal 1 card from your hand", e => One(e.RevealFromHand())),
 
             // Play
-            new Entry("play-1", "Play 1 card", e => One(e.PlayFromHand())),
-            new Entry("play-face-down", "Play 1 card face-down", e => One(e.PlayFromHand(faceDownOnly: true))),
-            new Entry("play-top-each-line", "Play the top card of your deck face-down in each line", PlayTopInEachLine),
-            new Entry("opponent-plays-top", "Your opponent plays the top card of their deck face-down in 1 line", OpponentPlaysTop),
+            new Entry("Play", "play-1", "Play 1 card", e => One(e.PlayFromHand())),
+            new Entry("Play", "play-face-down", "Play 1 card face-down", e => One(e.PlayFromHand(faceDownOnly: true))),
+            new Entry("Play", "play-top-chosen-lines", "Play the top card of your deck face-down in the lines you choose", PlayTopInChosenLines),
+            new Entry("Play", "opponent-plays-top", "Your opponent plays the top card of their deck face-down in 1 line", OpponentPlaysTop),
 
             // Hands
-            new Entry("give-1", "Give 1 card from your hand to your opponent", e => One(e.Give())),
-            new Entry("take-random", "Take 1 random card from your opponent's hand", e => One(e.TakeRandom())),
-            new Entry("draw-opponent-top", "Draw the top card of your opponent's deck", e => One(e.DrawFromOpponentDeck())),
+            new Entry("Hands", "give-1", "Give 1 card from your hand to your opponent", e => One(e.Give())),
+            new Entry("Hands", "take-random", "Take 1 random card from your opponent's hand", e => One(e.TakeRandom())),
+            new Entry("Hands", "draw-opponent-top", "Draw the top card of your opponent's deck", e => One(e.DrawFromOpponentDeck())),
 
             // Protocols
-            new Entry("swap-own", "Swap the positions of 2 of your Protocols", e => One(e.Swap(e.Owner))),
-            new Entry("rearrange-opponent", "Rearrange your opponent's Protocols", e => One(e.Rearrange(e.Opponent))),
+            new Entry("Protocols", "swap-own", "Swap the positions of 2 of your Protocols", e => One(e.Swap(e.Owner))),
+            new Entry("Protocols", "rearrange-opponent", "Rearrange your opponent's Protocols", e => One(e.Rearrange(e.Opponent))),
 
             // Options
-            new Entry("either", "Either discard 1 card or draw 2 cards", EitherDiscardOrDraw),
-            new Entry("may-draw", "You may draw 1 card. If you do, delete 1 card", MayDrawThenDelete),
+            new Entry("Options", "either", "Either discard 1 card or draw 2 cards", EitherDiscardOrDraw),
+            new Entry("Options", "may-draw", "You may draw 1 card. If you do, delete 1 card", MayDrawThenDelete),
         };
 
         public static Func<Effect, IEnumerable<Op>> Find(string key) => All.FirstOrDefault(d => d.Key == key)?.Text;
@@ -138,8 +141,23 @@ namespace Compile.Engine
                 yield return e.Flip(card);
         }
 
-        static IEnumerable<Op> PlayTopInEachLine(Effect e) =>
-            One(e.Each(Lines, l => LineNames[GameState.ToLocal(e.Owner, l)], l => e.PlayTopOfDeck(l)));
+        // A line at a time: each line picked gets a card straight away, until the player is done (after
+        // at least one) or every line has one. Stands in for "each line where ..." and "each other line" text.
+        static IEnumerable<Op> PlayTopInChosenLines(Effect e)
+        {
+            var remaining = Lines.ToList();
+            while (remaining.Count > 0)
+            {
+                var first = remaining.Count == GameState.LineCount;
+                var line = e.ChooseLine(first ? "Play the top card of your deck face-down in which line?" : "Play another in which line?",
+                    remaining, optional: !first);
+                yield return line;
+                if (!line.Done)
+                    yield break;
+                remaining.Remove(line.Line);
+                yield return e.PlayTopOfDeck(line.Line);
+            }
+        }
 
         static IEnumerable<Op> OpponentPlaysTop(Effect e)
         {

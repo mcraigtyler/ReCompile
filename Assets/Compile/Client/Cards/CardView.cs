@@ -18,6 +18,9 @@ namespace Compile.Client.Cards
         UnityEngine.UI.Image _face;
         UnityEngine.UI.Image _shadow;
         UnityEngine.UI.Image _glow;
+        RectTransform _badge;
+        UnityEngine.UI.Image _badgeFrame;
+        TMPro.TextMeshProUGUI _badgeText;
 
         Vector2 _fromPos, _toPos;
         float _fromRot, _toRot, _fromScale, _toScale;
@@ -129,6 +132,34 @@ namespace Compile.Client.Cards
 
         // Dims the face, e.g. for covered cards a player can't target.
         public void SetTint(Color color) => _face.color = color;
+
+        // A label across the card (e.g. "REVEALED"); null hides it.
+        public void SetBadge(string text, Color color)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                if (_badge != null)
+                    _badge.gameObject.SetActive(false);
+                return;
+            }
+            if (_badge == null)
+            {
+                _badge = UI.Ui.Rect("Badge", _rect);
+                _badge.sizeDelta = new Vector2(SizePx.x, 96f);
+                UI.Ui.Backdrop(_badge, new Color(0.06f, 0.04f, 0.1f, 0.92f), color, shadow: false);
+                _badgeFrame = _badge.Find("Frame").GetComponent<UnityEngine.UI.Image>();
+                _badgeText = UI.Ui.Text(_badge, "", UI.TextStyle.Label, TMPro.TextAlignmentOptions.Center);
+                _badgeText.fontSize = 44f;
+                _badgeText.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
+                UI.Ui.Stretch(_badgeText.rectTransform);
+            }
+            _badge.gameObject.SetActive(true);
+            _badge.SetAsLastSibling();
+            _badge.localEulerAngles = new Vector3(0f, 0f, -_toRot);     // reads upright on the opponent's cards too
+            _badgeText.text = text;
+            _badgeText.color = color;
+            _badgeFrame.color = color;
+        }
 
         void Update()
         {

@@ -158,6 +158,7 @@ namespace Compile.Engine
         public bool Optional { get; internal set; }
         public int TargetSeat { get; internal set; } = -1;     // Rearrange/Swap: whose Protocols, or -1 for the chooser's pick
         public LinePurpose Purpose { get; internal set; }
+        public string Verb { get; internal set; }               // FieldCards/HandCards: what happens to the picks ("Discard", "Flip", ...)
         public bool FaceUpAllowed { get; internal set; }        // Play
         public bool FaceDownAllowed { get; internal set; }      // Play
         public CardInstance Source { get; internal set; }       // the card whose text asks, if any
