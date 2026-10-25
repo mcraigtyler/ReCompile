@@ -393,6 +393,30 @@ The effect framework, choice kinds, and their UI are built in Phase 4. This phas
 - [ ] Card effect classes registered for every card in scope, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect, except the Protocols in `MainSet1.NotYetWritten`; the list shrinks with each wave and the box is ticked when it's empty
 - [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn
 - [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
+- [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
+- [ ] The same note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like)
+
+### Game log for bug reports (next, before Wave B)
+
+While playing, the player can save a log of the game and share it, so we can tell whether the game made a mistake or the player missed what it did, and turn a real game into a test.
+
+- [ ] **Game record**: everything needed to replay the game exactly: format version, build version, card text set (`MainSet1`, waves written), seed, first seat, player names, drafted Protocols, and every intent in order (undone moves are kept and marked). The engine is deterministic and undo already replays intents, so the record is enough to rebuild any moment of the game
+- [ ] **Readable transcript**, in the same file, for reading without tools. For each move:
+  - the turn, phase, and who acted
+  - the intent ("Ann played Death 4 face-up into the left line", "Ann picked Plague 1")
+  - each question asked: the prompt, who answered it, which cards, lines, or options were valid, and the answer, or "picked for Ann: only choice"
+  - every event, with full information. The log is for debugging, so it shows hidden cards too, marked as hidden
+  - the board after the move: each line's stacks (face-down cards marked), totals, Control, compiled Protocols, hands, deck and trash counts
+- [ ] Rule notes in the transcript where a rule changed the result, such as "Metal 2: Bob can't play face-down in the right line", or "Plague 2 uncovered: its text runs"
+- [ ] **Saving it**, from **Debug → Save game log** at any time and from the game-over screen:
+  - in the browser, download a `.txt` file (`compile-log-<date>-<time>.txt`) through a small JavaScript plugin
+  - in the Editor, write it to `Logs/Games/` and print the path
+  - also **Copy game log** to the clipboard, for pasting into a chat
+- [ ] The game keeps the record as it goes, so a log can still be saved after an error. If the engine throws, the client catches it, shows "Something went wrong. Save the game log?", and puts the exception in the log
+- [ ] **Replaying a log in tests**: `GameRecord.Load(text)` rebuilds the game, and `Replay(toStep)` stops at any move, so a shared log becomes a regression test in `Tests/EditMode/Engine/Logs/`. A test checks that saving and replaying a fuzzed game gives the same state at every step
+- [ ] README: how to save a log and share it
+
+**Done when:** a log saved from a WebGL game in the browser replays in a test to the same board, and its transcript reads clearly enough to follow the game without the board.
 
 ### Cards, in waves
 
