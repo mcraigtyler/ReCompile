@@ -23,7 +23,7 @@ namespace Compile.Engine
         internal string Name => CardId.Replace('_', ' ');
 
         // The card's name if this viewer could see it at the time, otherwise a stand-in.
-        internal string NameFor(int viewer, string hidden = "a face-down card") => FaceUp || Owner == viewer ? Name : hidden;
+        internal string NameFor(int viewer, string hidden = "a face-down card") => FaceUp || Owner == viewer || viewer == GameEvent.Everyone ? Name : hidden;
     }
 
     // Something that happened, in order, for animation and the event log. Events hold full information;
@@ -31,6 +31,12 @@ namespace Compile.Engine
     // the events themselves before they're sent over the network.)
     public abstract class GameEvent
     {
+        // A viewer who sees everything, hidden cards included: the game log saved for bug reports. Its lines
+        // are field lines, "1st line" to "3rd line" from seat 0's left.
+        public const int Everyone = -2;
+
+        protected static bool Knows(int seat, int viewer) => seat == viewer || viewer == Everyone;
+
         // A log line for this viewer, or null if the event isn't logged.
         public virtual string Describe(GameState state, int viewer) => null;
 
@@ -39,8 +45,10 @@ namespace Compile.Engine
 
         protected static string Who(GameState state, int seat, int viewer) => seat == viewer ? "You" : state.Players[seat].Name;
 
+        public static string FieldLineName(int fieldLine) => new[] { "1st", "2nd", "3rd" }[fieldLine] + " line";
+
         protected static string LineName(int fieldLine, int viewer) =>
-            new[] { "left", "middle", "right" }[GameState.ToLocal(viewer, fieldLine)] + " line";
+            viewer == Everyone ? FieldLineName(fieldLine) : new[] { "left", "middle", "right" }[GameState.ToLocal(viewer, fieldLine)] + " line";
 
         protected static string Plural(int n, string noun) => n == 1 ? $"1 {noun}" : $"{n} {noun}s";
 
@@ -142,7 +150,7 @@ namespace Compile.Engine
 
         public override string Describe(GameState state, int viewer) =>
             Cards.Count == 0 ? null
-            : Seat == viewer ? $"You drew {Names(Cards)}."
+            : Knows(Seat, viewer) ? $"{Who(state, Seat, viewer)} drew {Names(Cards)}."
             : $"{Who(state, Seat, viewer)} drew {Plural(Cards.Count, "card")}.";
     }
 
@@ -166,7 +174,7 @@ namespace Compile.Engine
 
         public override string Describe(GameState state, int viewer)
         {
-            var what = FaceUp ? $"{Card.Name} face-up" : Seat == viewer ? $"{Card.Name} face-down" : "a card face-down";
+            var what = FaceUp ? $"{Card.Name} face-up" : Knows(Seat, viewer) ? $"{Card.Name} face-down" : "a card face-down";
             var from = FromDeck ? $" from the top of {(Seat == viewer ? "your" : "their")} deck" : "";
             return $"{Who(state, Seat, viewer)} played {what}{from} into the {LineName(FieldLine, viewer)}.";
         }
@@ -495,7 +503,7 @@ namespace Compile.Engine
         {
             if (Card == null)
                 return $"{Who(state, FromSeat, viewer)} had no cards left to draw from.";
-            var what = Seat == viewer ? Card.Name : "a card";
+            var what = Knows(Seat, viewer) ? Card.Name : "a card";
             return $"{Who(state, Seat, viewer)} drew {what} from {(FromSeat == viewer ? "your" : $"{state.Players[FromSeat].Name}'s")} deck.";
         }
     }

@@ -8,7 +8,7 @@ namespace Compile.Engine.Cards
     // Protocols in waves; see NotYetWritten.
     public static class MainSet1
     {
-        public static CardEffects Effects { get; } = new CardEffects()
+        public static CardEffects Effects { get; } = new CardEffects("MainSet1")
             // Wave A
             .Add("Death_0", new Death0()).Add("Death_1", new Death1()).Add("Death_2", new Death2())
             .Add("Death_3", new Death3()).Add("Death_4", new Death4()).Add("Death_5", new YouDiscardOne())

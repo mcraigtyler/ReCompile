@@ -396,25 +396,18 @@ The effect framework, choice kinds, and their UI are built in Phase 4. This phas
 - [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
 - [ ] The same note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like)
 
-### Game log for bug reports (next, before Wave B)
+### Game log for bug reports
 
 While playing, the player can save a log of the game and share it, so we can tell whether the game made a mistake or the player missed what it did, and turn a real game into a test.
 
-- [ ] **Game record**: everything needed to replay the game exactly: format version, build version, card text set (`MainSet1`, waves written), seed, first seat, player names, drafted Protocols, and every intent in order (undone moves are kept and marked). The engine is deterministic and undo already replays intents, so the record is enough to rebuild any moment of the game
-- [ ] **Readable transcript**, in the same file, for reading without tools. For each move:
-  - the turn, phase, and who acted
-  - the intent ("Ann played Death 4 face-up into the left line", "Ann picked Plague 1")
-  - each question asked: the prompt, who answered it, which cards, lines, or options were valid, and the answer, or "picked for Ann: only choice"
-  - every event, with full information. The log is for debugging, so it shows hidden cards too, marked as hidden
-  - the board after the move: each line's stacks (face-down cards marked), totals, Control, compiled Protocols, hands, deck and trash counts
-- [ ] Rule notes in the transcript where a rule changed the result, such as "Metal 2: Bob can't play face-down in the right line", or "Plague 2 uncovered: its text runs"
-- [ ] **Saving it**, from **Debug → Save game log** at any time and from the game-over screen:
-  - in the browser, download a `.txt` file (`compile-log-<date>-<time>.txt`) through a small JavaScript plugin
-  - in the Editor, write it to `Logs/Games/` and print the path
-  - also **Copy game log** to the clipboard, for pasting into a chat
-- [ ] The game keeps the record as it goes, so a log can still be saved after an error. If the engine throws, the client catches it, shows "Something went wrong. Save the game log?", and puts the exception in the log
-- [ ] **Replaying a log in tests**: `GameRecord.Load(text)` rebuilds the game, and `Replay(toStep)` stops at any move, so a shared log becomes a regression test in `Tests/EditMode/Engine/Logs/`. A test checks that saving and replaying a fuzzed game gives the same state at every step
-- [ ] README: how to save a log and share it
+- [x] **Game record** (`GameRecord`, kept by games made with `Game.Create(..., record: true)`; the client always turns it on): format version, build, platform, mode, card text set (`MainSet1`) and the Protocols without text yet, seed, first seat, player names, the draft pool (or drafted Protocols), and every accepted intent in order, undos included. The engine is deterministic, so that's enough to rebuild any moment of the game
+- [x] **Readable transcript**, in the same file. For each move: the turn, phase, and player; the question being answered (prompt, kind, how many, which card it came from, and every card, line, or option that could be picked, with ids and where each card is); the move; every event, described for an all-seeing viewer (`GameEvent.Everyone`) so hidden cards are named; and the board after it (stacks bottom to top with `~` for face-down cards, totals, Protocols and which are compiled, Control, hands, decks in order, trashes). Lines are field lines, "1st line" to "3rd line" from the first seat's left
+- [x] Rule notes: moves the engine refused are listed with the reason ("(not allowed) Bob plays ...: Metal 2: you can't play cards face-down in this line."), but not replayed; text set off by uncovering or flipping, and picks made for a player, come from the `CardTextRuns` and `ChoiceMadeFor` events
+- [x] **Saving it**, from **Debug → Save game log** at any time and **Save game log** on the result screen: a `.txt` download in the browser (`FileDownload.jslib`), `Logs/Games/` in the Editor, the persistent data folder elsewhere. **Debug → Copy game log** puts it on the clipboard
+- [x] If the engine throws, `MatchController` catches it, stops the game (bots too), and the board offers **Save game log**, **Copy game log**, and **Leave game**. The log keeps the failed move (marked in the Moves) and the exception
+- [x] **Replaying a log in tests**: `GameRecord.Load(text)` then `Replay(catalog, effects, moves)` rebuilds the game after any number of moves; a move that's refused on replay throws, saying which. `GameRecordTests` saves and replays 20 recorded random games and checks the transcript comes out identical, replays to partway points, and checks loading errors, hidden cards, refused moves, and an engine failure. Shared logs go in `Tests/EditMode/Engine/Logs/`
+- [x] README: how to save a log and share it
+- [ ] Hand check: save a log from a WebGL game in the browser and replay it in a test
 
 **Done when:** a log saved from a WebGL game in the browser replays in a test to the same board, and its transcript reads clearly enough to follow the game without the board.
 

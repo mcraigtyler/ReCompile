@@ -105,8 +105,13 @@ namespace Compile.Engine
     {
         readonly Dictionary<string, CardEffect> _effects = new Dictionary<string, CardEffect>();
 
-        // No card has text yet; Phase 5 registers them here.
-        public static CardEffects None { get; } = new CardEffects();
+        // No card has text.
+        public static CardEffects None { get; } = new CardEffects("None");
+
+        // Which card text this is, for game logs ("MainSet1").
+        public string Name { get; }
+
+        public CardEffects(string name = "Custom") => Name = name;
 
         public bool IsEmpty => _effects.Count == 0;
 

@@ -31,6 +31,11 @@ namespace Compile.Client.App
         // Called after every accepted move, with the events it caused.
         public event Action<IReadOnlyList<GameEvent>> Changed;
 
+        // Called once if the engine throws. The game can't go on after that, but its log can still be saved.
+        public event Action<Exception> Failed;
+
+        public Exception Failure { get; private set; }
+
         public MatchController(Game game, SeatKind seat0, SeatKind seat1, int viewer, int botSeed)
         {
             Game = game;
@@ -67,7 +72,20 @@ namespace Compile.Client.App
         // if the move isn't allowed, or null.
         public string Submit(Intent intent)
         {
-            var result = Game.Submit(intent);
+            if (Failure != null)
+                return "The game stopped after an error. Save the game log from the Debug menu.";
+            IntentResult result;
+            try
+            {
+                result = Game.Submit(intent);
+            }
+            catch (Exception e)
+            {
+                Failure = e;
+                UnityEngine.Debug.LogException(e);
+                Failed?.Invoke(e);
+                return "Something went wrong.";
+            }
             if (!result.Accepted)
                 return result.Error;
             _botWaited = 0f;
@@ -78,7 +96,7 @@ namespace Compile.Client.App
         // Lets bots take their turns, a move at a time, with a pause so people can follow along.
         public void Tick(float deltaTime)
         {
-            var seat = SeatToMove;
+            var seat = Failure == null ? SeatToMove : -1;
             if (seat < 0 || _seats[seat] != SeatKind.Bot)
                 return;
 

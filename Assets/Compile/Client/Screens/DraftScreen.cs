@@ -56,7 +56,11 @@ namespace Compile.Client.Screens
             var start = match.Start;
             var names = App.Catalog.Protocols.ToList();
             var game = Game.Create(App.Catalog, names, start.FirstSeat, start.Seed, match.SeatName(0), match.SeatName(1),
-                effects: Compile.Engine.Cards.MainSet1.Effects);
+                effects: Compile.Engine.Cards.MainSet1.Effects, record: true);
+            game.Record.SetInfo("build", $"{Application.version} (Unity {Application.unityVersion})");
+            game.Record.SetInfo("platform", Application.platform.ToString());
+            game.Record.SetInfo("mode", match.Hotseat ? "hot-seat" : "against the stand-in opponent");
+            game.Record.SetInfo("no-text-yet", string.Join(", ", Compile.Engine.Cards.MainSet1.NotYetWritten));
             var opponent = match.Hotseat ? SeatKind.Human : SeatKind.Bot;
             _match = start.LocalSeat == 0
                 ? new MatchController(game, SeatKind.Human, opponent, viewer: 0, botSeed: start.Seed)

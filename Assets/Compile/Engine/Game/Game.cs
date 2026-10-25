@@ -36,6 +36,9 @@ namespace Compile.Engine
         public PendingChoice Pending { get; private set; }
         public IReadOnlyList<GameEvent> History => _history;
 
+        // The game log for bug reports, if this game keeps one (see GameRecord).
+        public GameRecord Record { get; }
+
         // With this on (the default), a turn doesn't pass until the player sends EndTurn, so the whole
         // turn can be undone until then. Rule tests turn it off so turns flow straight on.
         public bool ConfirmEndTurn { get; }
@@ -52,21 +55,25 @@ namespace Compile.Engine
         // In the draft: whose move it is (picking, or confirming their picks).
         public int DraftSeat => DraftConfirmSeat >= 0 ? DraftConfirmSeat : State.Draft?.CurrentSeat ?? -1;
 
-        Game(CardCatalog catalog, Func<Game, GameState> setup, bool confirmEndTurn, CardEffects effects)
+        Game(CardCatalog catalog, Func<Game, GameState> setup, bool confirmEndTurn, CardEffects effects, GameRecord record = null)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _effects = effects ?? CardEffects.None;
             _setup = setup;
             ConfirmEndTurn = confirmEndTurn;
+            Record = record;
             State = setup(this);
             Run();
+            Record?.Started(this);
         }
 
         // ---------- Creating games ----------
 
-        // A new game that starts with the Protocol draft (1-2-2-1) from the given pool.
+        // A new game that starts with the Protocol draft (1-2-2-1) from the given pool. With record on, it
+        // keeps a game log (Record).
         public static Game Create(CardCatalog catalog, IEnumerable<string> pool, int firstSeat, long seed,
-            string name0 = "Player 1", string name1 = "Player 2", bool confirmEndTurn = true, CardEffects effects = null)
+            string name0 = "Player 1", string name1 = "Player 2", bool confirmEndTurn = true, CardEffects effects = null,
+            bool record = false)
         {
             var protocols = pool.ToList();
             return new Game(catalog, _ => new GameState(seed, name0, name1)
@@ -74,20 +81,22 @@ namespace Compile.Engine
                 Stage = GameStage.Draft,
                 Draft = new Draft(protocols, firstSeat),
                 FirstSeat = firstSeat,
-            }, confirmEndTurn, effects);
+            }, confirmEndTurn, effects,
+                record ? GameRecord.ForDraft(protocols, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null);
         }
 
         // A new game with the Protocols already chosen (each list left to right from that player's seat).
         public static Game CreateDrafted(CardCatalog catalog, IReadOnlyList<string> protocols0, IReadOnlyList<string> protocols1,
             int firstSeat, long seed, string name0 = "Player 1", string name1 = "Player 2", bool confirmEndTurn = true,
-            CardEffects effects = null)
+            CardEffects effects = null, bool record = false)
         {
             return new Game(catalog, game =>
             {
                 game.State = new GameState(seed, name0, name1) { FirstSeat = firstSeat };
                 game.StartGame(protocols0, protocols1);
                 return game.State;
-            }, confirmEndTurn, effects);
+            }, confirmEndTurn, effects,
+                record ? GameRecord.ForDrafted(protocols0, protocols1, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null);
         }
 
         // Resumes a game from a hand-built state (used by tests). The state's phase says where to pick up:
@@ -119,7 +128,26 @@ namespace Compile.Engine
         {
             if (intent == null)
                 throw new ArgumentNullException(nameof(intent));
+            if (Record == null)
+                return SubmitUnrecorded(intent);
 
+            var note = Record.Before(this, intent);
+            IntentResult result;
+            try
+            {
+                result = SubmitUnrecorded(intent);
+            }
+            catch (Exception e)
+            {
+                Record.Crashed(this, note, e);
+                throw;
+            }
+            Record.After(this, note, result);
+            return result;
+        }
+
+        IntentResult SubmitUnrecorded(Intent intent)
+        {
             if (intent is Undo undo)
             {
                 var undoError = CheckUndo(undo.Seat);

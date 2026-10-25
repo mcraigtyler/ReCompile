@@ -27,6 +27,7 @@ The scene contains only an `App` object. Everything else (the desk, play mat, ca
 | A game against the stand-in opponent | **Host game** → wait about 3 s for the opponent → **I'm ready** → **Start** → draft → play. The opponent makes random legal moves |
 | Undo | Make a move, then **Undo** (or Ctrl+Z). You can undo every move in your turn until you press **End turn**, except after drawing cards. In the draft, undo a pick until you press **Confirm** |
 | Skipping ahead | **Debug → Auto-play your turn** makes random moves for you; **Concede** ends the game |
+| Reporting a problem | **Debug → Save game log** (or **Save game log** when the game ends) saves the whole game as a `.txt` file: a download in the browser, `Logs/Games/` in the Editor. **Debug → Copy game log** copies it instead, for pasting into a message. Share the whole file: it replays the game exactly and has a move-by-move transcript |
 | Joining a room | **Join game** with any 6-character code |
 | Join errors | Codes starting with **X** show "Room not found"; codes starting with **F** show "Room is full" |
 | An opponent disconnecting | **Debug → Opponent leaves** on the board (games against the stand-in opponent) |
@@ -79,7 +80,7 @@ Supported screens are desktops and tablets whose shorter side is at least 768 CS
   unity test . --mode EditMode
   ```
 
-Tests cover the card data, the rules engine (setup, the turn, Control, compiling, hidden information, undo, and the card-effects framework), the simulated session service, and room code validation. Fuzz tests play 200 random games, checking the rules after every move: one without card text, and one where every card gets random text built from the debug effects. `Fuzz_10000RandomGames` and `Fuzz_10000RandomGamesWithEffects` run 10,000 each when you ask for them by name.
+Tests cover the card data, the rules engine (setup, the turn, Control, compiling, hidden information, undo, and the card-effects framework), the Main Set 1 cards written so far, game logs (saving and replaying), the simulated session service, and room code validation. Fuzz tests play 200 random games three ways, checking the rules after every move: without card text, with random text built from the debug effects on every card, and with the real Main Set 1 text. `Fuzz_10000RandomGames`, `Fuzz_10000RandomGamesWithEffects`, and `Fuzz_10000RandomGamesWithMainSet1` run 10,000 each when you ask for them by name.
 
 ## Project layout
 

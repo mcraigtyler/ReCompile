@@ -1,4 +1,5 @@
 using Compile.Client.App;
+using Compile.Client.Platform;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine;
@@ -55,6 +56,10 @@ namespace Compile.Client.Screens
             var row = Ui.Row(panel, 24f);
             Ui.Button(row, "Leave", ButtonStyle.Quiet, () => InMatch.Leave(App));
             Ui.Button(row, "Rematch", ButtonStyle.Primary, Rematch);
+
+            var record = match.Controller?.Game.Record;
+            if (record != null)
+                Ui.Button(panel, "Save game log", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.Save(record), seconds: 6f));
 
             if (match.EndReason == EndReason.Compiled && match.Controller != null)
             {

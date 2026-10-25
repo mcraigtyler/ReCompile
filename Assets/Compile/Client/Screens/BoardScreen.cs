@@ -4,6 +4,7 @@ using System.Linq;
 using Compile.Client.App;
 using Compile.Client.Board;
 using Compile.Client.Cards;
+using Compile.Client.Platform;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine;
@@ -69,6 +70,7 @@ namespace Compile.Client.Screens
         {
             _match = App.Match.Controller;
             _match.Changed += OnChanged;
+            _match.Failed += OnFailed;
 
             _table = new GameObject("BoardTable").AddComponent<BoardTable>();
             _table.transform.SetParent(App.Table, false);
@@ -111,6 +113,7 @@ namespace Compile.Client.Screens
         protected override void OnExit()
         {
             _match.Changed -= OnChanged;
+            _match.Failed -= OnFailed;
             _table.Dispose();
             UnityEngine.Object.Destroy(_hud.gameObject);
             App.Hud.Zoom.Hide();
@@ -472,15 +475,19 @@ namespace Compile.Client.Screens
         // Things the board alone doesn't explain (text set off by uncovering or flipping a card, a pick made
         // for a player, a reveal) also show for a moment, one line each, besides going in the log.
 
+        // Notes that came while the screen was being handed over wait for the next player to take it.
+        readonly List<GameEvent> _unseenNotes = new List<GameEvent>();
+
         void ShowNotes(IReadOnlyList<GameEvent> events)
         {
+            _unseenNotes.AddRange(events.Where(e => e is CardTextRuns || e is ChoiceMadeFor || e is CardsRevealed));
             if (Covered)
                 return;
-            var notes = events
-                .Where(e => e is CardTextRuns || e is ChoiceMadeFor || e is CardsRevealed)
+            var notes = _unseenNotes
                 .Select(e => e.Describe(_match.Game.State, Viewer))
                 .Where(text => !string.IsNullOrEmpty(text))
                 .ToList();
+            _unseenNotes.Clear();
             if (notes.Count > 0)
                 App.Hud.Toast(string.Join("\n", notes), seconds: Mathf.Clamp(2.5f * notes.Count, 3.5f, 8f));
         }
@@ -919,6 +926,31 @@ namespace Compile.Client.Screens
             _hud.ShowTrash(local ? "Your trash" : $"{side.Name}'s trash", side.Trash, ZoomCard);
         }
 
+        // ---------- Game log ----------
+
+        void SaveLog()
+        {
+            try
+            {
+                App.Hud.Toast(GameLog.Save(_match.Game.Record), seconds: 6f);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                App.Hud.Toast($"Couldn't save the game log: {e.Message}", error: true);
+            }
+        }
+
+        // The engine threw: nothing more can be played, so offer the log for a bug report.
+        void OnFailed(Exception error)
+        {
+            App.Hud.Zoom.Hide();
+            _hud.ShowPrompt("Something went wrong, and the game can't continue. Save the game log to report it?",
+                ("Save game log", ButtonStyle.Primary, SaveLog),
+                ("Copy game log", ButtonStyle.Secondary, () => App.Hud.Toast(GameLog.Copy(_match.Game.Record), seconds: 5f)),
+                ("Leave game", ButtonStyle.Quiet, () => InMatch.Leave(App)));
+        }
+
         // ---------- Debug ----------
 
         void AddDebugActions()
@@ -935,6 +967,8 @@ namespace Compile.Client.Screens
                     Submit(new DebugEffect(Viewer, key));
                 });
             }
+            _hud.AddDebugAction("Save game log", SaveLog);
+            _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(_match.Game.Record), seconds: 5f));
             _hud.AddDebugAction("Auto-play a move", _match.AutoPlayViewer);
             _hud.AddDebugAction("Auto-play your turn", () =>
             {
