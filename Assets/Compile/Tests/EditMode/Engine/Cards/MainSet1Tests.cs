@@ -18,6 +18,15 @@ namespace Compile.Engine.Tests
 
         public static Game Load(string text, bool confirmEndTurn = false) =>
             Scenario.Load(Protocols + text, confirmEndTurn, MainSet1.Effects);
+
+        // Wave B: field line 0 is Ann's Gravity facing Bob's Plague, line 1 Spirit/Death, line 2 Water/Speed.
+        // Bob's own lines: 0 is field line 2 (Speed), 1 is field line 1 (Death), 2 is field line 0 (Plague).
+        const string ProtocolsB = @"
+            p0 Ann: Gravity Spirit Water
+            p1 Bob: Speed Death Plague";
+
+        public static Game LoadB(string text, bool confirmEndTurn = false) =>
+            Scenario.Load(ProtocolsB + text, confirmEndTurn, MainSet1.Effects);
     }
 
     public class MainSet1Tests

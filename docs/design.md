@@ -428,11 +428,10 @@ Task-level detail for each milestone is in [`plan.md`](plan.md).
 | 2 | **Board layout** | One player's board with real art: play cards, card zoom, piles, phase bar, wide and tall layouts. No engine or networking. |
 | 3 | **Engine core** | Full turn loop, Compile, Control, deck/trash with vanilla (text-less) cards. Tests pass. |
 | 4 | **Hot-seat prototype** | The board from milestone 2 runs on the engine; two players on one machine play a full game. |
-| 5 | **Card effects: Main Set 1** | All 12 Main Set 1 Protocols implemented with tests. |
+| 5 | **Card effects** | All 15 Protocols implemented with tests: the 12 of Main Set 1, then the expansion's Apathy, Hate, and Love. |
 | 6 | **Online play** | Room codes, draft, and full games between two WebGL builds via Relay. |
 | 7 | **Polish and tablets** | Animations, sound, reconnect, rematch. Verified on desktop and tablets in both orientations. |
-| 8 | **Expansion Protocols** | Apathy, Hate, and Love implemented and tested. |
-| 9 | **Release** | Hosted WebGL build, size and performance checks, rules page linked in-game. |
+| 8 | **Release** | Hosted WebGL build, size and performance checks, rules page linked in-game. |
 
 ## 11. Open Questions
 

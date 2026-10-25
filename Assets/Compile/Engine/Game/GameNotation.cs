@@ -597,11 +597,19 @@ namespace Compile.Engine
 
         IEnumerable<int> PickedCards(Game game, Codes codes, PendingChoice choice, int at)
         {
-            // The card to shift is in the shift that comes of it ("Fi3>b"), soon after.
+            // The card to shift is in the shift that comes of it ("Fi3>b"), soon after: after any text that
+            // leaving its line set off (a card it uncovered), but before the text this shift is part of ends.
             if (choice.Verb == "Shift")
             {
-                for (var i = at; i < _tokens.Count && _tokens[i] != ")"; i++)
+                var depth = 0;
+                for (var i = at; i < _tokens.Count; i++)
                 {
+                    if (_tokens[i] == "(")
+                        depth++;
+                    else if (_tokens[i] == ")" && --depth < 0)
+                        break;
+                    if (depth > 0)
+                        continue;
                     var shift = ShiftPattern.Match(_tokens[i]);
                     if (!shift.Success)
                         continue;

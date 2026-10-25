@@ -18,13 +18,11 @@ flowchart LR
   P0 --> P3[3 · Engine core]
   P2 --> P4[4 · Effects + hot-seat]
   P3 --> P4
-  P3 --> P5[5 · Main Set 1 cards]
+  P3 --> P5[5 · Card effects]
   P4 --> P6[6 · Online play]
   P5 --> P6
   P6 --> P7[7 · Polish and tablets]
-  P5 --> P8[8 · Expansion Protocols]
-  P7 --> P9[9 · Release]
-  P8 --> P9
+  P7 --> P8[8 · Release]
 ```
 
 | Phase | Goal | Playable result | Size |
@@ -34,11 +32,10 @@ flowchart LR
 | 2 | Board layout | One player's board with real cards, drag to play, wide and tall layouts | M |
 | 3 | Engine core | A full game runs in tests with text-less cards | M |
 | 4 | Effects framework + hot-seat (4a–4c) | Two people play a full game on one screen; every kind of card effect works and can be triggered from the Debug menu | L |
-| 5 | Main Set 1 cards | All 72 Main Set 1 cards work, with tests | L |
+| 5 | Card effects (Main Set 1 and the expansion, in waves A–D) | All 90 cards of the 15 Protocols work, with tests | L |
 | 6 | Online play | Two browsers play a full game with a room code | L |
 | 7 | Polish and tablets | Animations, sound, reconnect; verified on iPad and Android tablets | M |
-| 8 | Expansion Protocols | Apathy, Hate, and Love (18 cards) work | S |
-| 9 | Release | Public, hosted WebGL build | S |
+| 8 | Release | Public, hosted WebGL build | S |
 
 **Two tracks after Phase 0.** Phases 1–2 are presentation work (`Compile.Client`) and Phase 3 is rules work (`Compile.Engine`). They don't depend on each other and can run at the same time. They meet in Phase 4, where the board from Phase 2 is wired to the engine from Phase 3.
 
@@ -382,16 +379,16 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 ---
 
-## Phase 5 — Main Set 1 Card Effects
+## Phase 5 — Card Effects
 
-**Goal:** all 12 Main Set 1 Protocols (72 cards) work exactly as the cards and Codex say.
+**Goal:** every card works exactly as the cards and Codex say: the 12 Main Set 1 Protocols (72 cards, Waves A–C) and the expansion's Apathy, Hate, and Love (set AX01, 18 cards, Wave D), so all 15 Protocols in the draft pool are playable at the end of the phase.
 
 ### Framework
 
 The effect framework, choice kinds, and their UI are built in Phase 4. This phase adds:
 
 - [ ] Card effect classes registered for every card in scope, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect, except the Protocols in `MainSet1.NotYetWritten`; the list shrinks with each wave and the box is ticked when it's empty
-- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn
+- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change
 - [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
 - [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
 - [ ] The same note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like)
@@ -438,6 +435,7 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 | A | Death, Fire, Plague, Metal | Draw, discard, delete, flip, prevent |
 | B | Gravity, Water, Spirit, Speed | Shift, return, covered cards, extra plays |
 | C | Life, Light, Darkness, Psychic | Play from deck, reveal, hand manipulation, rearrange |
+| D | Apathy, Hate, Love (expansion AX01) | Line value modifier, ignoring middle commands, highest/lowest value targeting, "after you delete cards", giving and taking cards between hands |
 
 - [x] **Wave A** (24 cards; every one has text): Death, Fire, Metal, Plague, with tests in `Tests/EditMode/Engine/Cards/`. Rulings made here:
   - Death 1: "Then, delete this card" is its own sentence, so the card deletes itself even if you decline to draw, and (top text) even while covered
@@ -445,8 +443,26 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
   - Metal 1: "on their next turn" is the opponent's next turn after the text resolves, and only while Metal 1 is face-up and uncovered (Codex: "provided the text is visible")
   - Metal 3: "a line with 8 or more cards" counts both players' cards in the line
   - Death 2: face-down cards are worth 2, so "values of 1 or 2" deletes them
-- [ ] Wave B: Gravity, Water, Spirit, Speed
+- [x] **Wave B** (24 cards; Gravity has no 3): Gravity, Speed, Spirit, Water, with tests in `Tests/EditMode/Engine/Cards/` (`MainSet.LoadB`: Gravity/Spirit/Water against Speed/Death/Plague). `Fuzz_10000RandomGamesWithMainSet1` passes with Waves A and B (10,000 games, 77 turns on average). Rulings made here:
+  - "Text that can change the game must" (Codex, Card Text): "all cards in 1 line" text (Death 2, Water 3) only offers lines with a card it would affect, if any; Spirit 1's Start ("either discard 1 card or flip this card") flips without asking when its owner has no cards
+  - Gravity 0: "cards in this line" counts both players' cards, itself included, when its text resolves. The cards go straight in under it, so nothing is covered or uncovered and no text is set off
+  - Gravity 1: any uncovered card on either side. One in this line goes to a line its chooser picks; one elsewhere comes to this line (on its own side)
+  - Gravity 2: a card flipped face-up has its middle text resolve before it's shifted
+  - Speed 2: its owner picks where it goes, whoever is compiling (Codex: the rest of the line is still deleted and compiled)
+  - Spirit 0: a normal refresh, Control included (Codex)
+  - Spirit 3: "after you draw cards" includes drawing from the opponent's deck (a Recompile), and its owner may decline
+  - Water 1: an empty deck plays nothing and isn't shuffled (Codex); the player whose turn it is orders the two lines, as with any "each"
 - [ ] Wave C: Life, Light, Darkness, Psychic
+- [ ] **Wave D: Apathy, Hate, Love** (expansion AX01, 18 cards; moved here from its own phase so every card works by the end of Phase 5). A first look at their text shows they mostly reuse existing mechanics:
+  - Apathy: a line value modifier; "ignore all middle commands in this line" (the `IgnoresMiddle` rule query)
+  - Hate: highest/lowest value targeting; the "After you delete cards" trigger
+  - Love: giving and taking cards between hands (ownership change, already in the rules); the opponent drawing; taking a random card from the opponent's hand
+
+  Tasks:
+  - [ ] Confirm there's no separate AX01 rulesheet that changes core rules (open question in design.md)
+  - [ ] Implement the 18 cards with tests, following the definition of done below, in their own folder (`Engine.Cards/Expansion1/`) and registered with the Main Set 1 effects in the card text new games use. The missing-effect test covers AX01 too
+  - [ ] They're already in the draft pool (they're in `cards.json`); check the draft and the board show them like the others
+  - [ ] Fuzzer run with all 15 Protocols having text
 
 ### Definition of done (per card)
 
@@ -455,7 +471,7 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 - [ ] Tests for any Codex clarification on that card (Death 1, Fire 0, Life 0, Light 0, Light 3, Metal 1, Metal 6, Plague 3, Speed 2, Spirit 0, Spirit 1, Water 1)
 - [ ] Choice prompts have plain-language text ("Choose 1 card to flip")
 
-**Done when:** all 72 cards pass their tests, the fuzzer runs 10,000 games with real cards and no invariant failures, and a hot-seat game with each Protocol has been played.
+**Done when:** all 90 cards (15 Protocols) pass their tests, the fuzzer runs 10,000 games with real cards for all 15 Protocols and no invariant failures, and a hot-seat game with each Protocol has been played.
 
 ---
 
@@ -510,35 +526,13 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 - [ ] Fullscreen button; web app manifest and icons for home-screen install
 - [ ] ASTC + DXT texture variants for tablet GPUs
 - [ ] Memory check on iPad Safari (target under 512 MB)
+- [ ] Optional: say when a rule stops something that would otherwise happen, for example a compile Metal 1 blocks. Today the log and the notation only show what did happen, so "why didn't they compile?" has to be worked out from the line totals. This would add an event, a log line and toast ("Metal 1: Player1 can't compile this turn"), and a notation mark such as `#!Sp(Me1)`. The same could cover other blocked actions (Plague 0, Metal 2, Metal 6's lost flip)
 
 **Done when:** a full online game is played on an iPad (Safari) and an Android tablet (Chrome), in both orientations, including a mid-game rotation.
 
 ---
 
-## Phase 8 — Expansion Protocols
-
-**Goal:** Apathy, Hate, and Love (set AX01, 18 cards) work.
-
-Can start any time after Phase 5. A first look at their text shows they mostly reuse existing mechanics:
-
-| Protocol | New mechanics |
-|---|---|
-| Apathy | Line value modifier; "ignore all middle commands in this line" (a rule-modifier query) |
-| Hate | Highest/lowest value targeting; "After you delete cards" trigger |
-| Love | Give and take cards between hands (ownership change, already in the rules); opponent draws; take a random card from the opponent's hand |
-
-### Tasks
-
-- [ ] Confirm there's no separate AX01 rulesheet that changes core rules (open question in design.md)
-- [ ] Implement the 18 cards with tests, following the Phase 5 definition of done
-- [ ] Add them to the draft pool
-- [ ] Fuzzer run with all 15 Protocols
-
-**Done when:** all 18 cards pass their tests and the 15-Protocol fuzzer run is clean.
-
----
-
-## Phase 9 — Release
+## Phase 8 — Release
 
 **Goal:** a hosted, shareable build.
 
@@ -567,7 +561,7 @@ Can start any time after Phase 5. A first look at their text shows they mostly r
 | Turn timer | Phase 7 | None vs. optional chess clock |
 | Spectators | Phase 6 | Keep the redacted-view design open for a third view, or not |
 | Dedicated server | After release | When public play makes host-side hidden info unacceptable |
-| AX01 rules | Phase 8 | Confirm whether a rulesheet exists |
+| AX01 rules | Phase 5 (Wave D) | Confirm whether a rulesheet exists |
 
 ## Risks
 

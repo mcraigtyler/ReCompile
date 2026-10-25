@@ -37,10 +37,11 @@ namespace Compile.Engine.Cards
     {
         public override IEnumerable<Op> Middle(Effect e)
         {
-            var line = e.ChooseLine("Delete all cards with values of 1 or 2 in which line?", Lines);
+            Target OneOrTwo(int fieldLine) => Target.Any.InLine(fieldLine).Where(ValueIs(1, 2), "with a value of 1 or 2");
+            var line = e.ChooseLine("Delete all cards with values of 1 or 2 in which line?", LinesWithAny(e, OneOrTwo));
             yield return line;
             if (line.Done)
-                yield return e.DeleteAll(Target.Any.InLine(line.Line).Where(ValueIs(1, 2), "with a value of 1 or 2"));
+                yield return e.DeleteAll(OneOrTwo(line.Line));
         }
     }
 

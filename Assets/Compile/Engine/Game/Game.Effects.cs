@@ -445,6 +445,14 @@ namespace Compile.Engine
                 cards => ShiftCards(e, op, cards, toLine, chooser));
         }
 
+        // "Shift 1 card either to or from this line": a card in the line goes to another line (the chooser
+        // picks which); a card elsewhere comes to this line.
+        internal void ShiftToOrFromOp(Effect e, Op op, int fieldLine, int chooser)
+        {
+            PickCards(e, chooser, ChoiceKind.FieldCards, "Shift", "Shift 1 card to or from this line", Candidates(e, Target.Any), 1, 1, optional: false,
+                cards => ShiftCards(e, op, cards, FieldLineOf(cards[0]) == fieldLine ? -1 : fieldLine, chooser));
+        }
+
         // Shifts cards to another line on their own side. Without a fixed destination the chooser picks one of
         // the lines none of them is in (all of them move to the same line).
         internal void ShiftCards(Effect e, Op op, List<CardInstance> cards, int toLine, int chooser)
@@ -665,6 +673,24 @@ namespace Compile.Engine
             var card = deck[0];
             deck.RemoveAt(0);
             PlayToField(op, card, seat, fieldLine, faceUp: false, fromDeck: true);
+        }
+
+        // "Play the top card of your deck face-down under this card": it goes straight into the stack just
+        // below that card, which stays on top. Nothing is uncovered or covered, so no text is set off.
+        internal void PlayTopOfDeckUnderOp(Op op, int seat, CardInstance above)
+        {
+            var deck = State.Players[seat].DeckCards;
+            if (deck.Count == 0 || !Locate(above, out var stackSeat, out var fieldLine, out var index) || stackSeat != seat)
+                return;
+            var card = deck[0];
+            deck.RemoveAt(0);
+            card.FaceUp = false;
+            var stack = State.Lines[fieldLine].StackCards[seat];
+            if (index > 0)
+                stack[index - 1].Covers++;
+            stack.Insert(index, card);
+            op.Add(card);
+            Emit(new CardPlayed(seat, new CardRef(card), fieldLine, faceUp: false, fromDeck: true));
         }
 
         // ---------- Building blocks: reveal ----------

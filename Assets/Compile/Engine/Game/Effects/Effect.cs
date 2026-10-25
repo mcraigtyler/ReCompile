@@ -209,6 +209,9 @@ namespace Compile.Engine
 
         int Seat(int? seat) => seat ?? Owner;
 
+        // Whether any field card matches (all: covered ones too).
+        public bool AnyCards(Target target, bool all = false) => Game.Candidates(this, target, all).Count > 0;
+
         // ---- Draw and discard ----
 
         public Op Draw(int count, int? seat = null) => new Op(op => Game.DrawOp(this, op, Seat(seat), count));
@@ -241,6 +244,10 @@ namespace Compile.Engine
 
         public Op Shift(CardInstance card, int toLine = -1, int? chooser = null) =>
             new Op(op => Game.ShiftCards(this, op, Fixed(card), toLine, Seat(chooser)));
+
+        // "Shift 1 card either to or from this line" (any uncovered card).
+        public Op ShiftToOrFrom(int fieldLine, int? chooser = null) =>
+            new Op(op => Game.ShiftToOrFromOp(this, op, fieldLine, Seat(chooser)));
 
         // Every matching card at once, to one destination.
         public Op ShiftAll(Target target, int toLine = -1, int? chooser = null) =>
@@ -277,6 +284,10 @@ namespace Compile.Engine
 
         // The top card of the player's deck, face-down, into their side of a field line. Nothing if the deck is empty.
         public Op PlayTopOfDeck(int fieldLine, int? seat = null) => new Op(op => Game.PlayTopOfDeckOp(op, Seat(seat), fieldLine));
+
+        // The top card of the player's deck, face-down, just under a card of theirs in the field (which stays on top).
+        public Op PlayTopOfDeckUnder(CardInstance above, int? seat = null) =>
+            new Op(op => Game.PlayTopOfDeckUnderOp(op, Seat(seat), above));
 
         // ---- Hands ----
 
