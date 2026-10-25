@@ -27,6 +27,15 @@ namespace Compile.Engine.Tests
 
         public static Game LoadB(string text, bool confirmEndTurn = false) =>
             Scenario.Load(ProtocolsB + text, confirmEndTurn, MainSet1.Effects);
+
+        // Wave C: field line 0 is Ann's Darkness facing Bob's Fire, line 1 Life/Death, line 2 Light/Psychic.
+        // Bob's own lines: 0 is field line 2 (Psychic), 1 is field line 1 (Death), 2 is field line 0 (Fire).
+        const string ProtocolsC = @"
+            p0 Ann: Darkness Life Light
+            p1 Bob: Psychic Death Fire";
+
+        public static Game LoadC(string text, bool confirmEndTurn = false) =>
+            Scenario.Load(ProtocolsC + text, confirmEndTurn, MainSet1.Effects);
     }
 
     public class MainSet1Tests

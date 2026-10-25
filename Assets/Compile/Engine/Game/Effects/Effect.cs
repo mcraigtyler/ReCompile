@@ -18,6 +18,10 @@ namespace Compile.Engine
         public IReadOnlyList<CardInstance> Cards => _cards;
         public int Count => _cards.Count;
 
+        // Flip: the cards chosen, even if one wasn't flipped after all (Metal 6 deleting itself instead).
+        // Light 0 still means "that card" (Codex).
+        public IReadOnlyList<CardInstance> Picked { get; internal set; } = Array.Empty<CardInstance>();
+
         // Choose/May: the option picked, or -1 if declined. ChooseLine: the field line picked, or -1.
         public int Option { get; internal set; } = -1;
         public int Line { get; internal set; } = -1;

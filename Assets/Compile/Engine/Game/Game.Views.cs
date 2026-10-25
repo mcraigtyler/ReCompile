@@ -20,7 +20,7 @@ namespace Compile.Engine
                 Stage = state.Stage,
                 Local = Side(viewer, viewer),
                 Opponent = Side(other, viewer),
-                Hand = state.Players[viewer].HandCards.Select(c => Info(c, viewer)).ToList(),
+                Hand = state.Players[viewer].HandCards.Select(c => HandInfo(c, viewer)).ToList(),
                 Turn = state.Turn,
                 LocalTurn = state.ActiveSeat == viewer,
                 Phase = state.Phase,
@@ -138,6 +138,20 @@ namespace Compile.Engine
                 Revealed = revealed,
             };
         }
+
+        CardInfo HandInfo(CardInstance card, int viewer)
+        {
+            var info = Info(card, viewer);
+            if (State.Stage == GameStage.Playing)
+            {
+                info.FaceUpLines = Placements(card, viewer, true);
+                info.FaceDownLines = Placements(card, viewer, false);
+            }
+            return info;
+        }
+
+        bool[] Placements(CardInstance card, int viewer, bool faceUp) => Enumerable.Range(0, GameState.LineCount)
+            .Select(local => CheckPlacement(viewer, card, GameState.ToField(viewer, local), faceUp) == null).ToArray();
 
         List<LogEntry> Log(int viewer)
         {

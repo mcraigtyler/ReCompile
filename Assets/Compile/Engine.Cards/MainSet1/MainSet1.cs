@@ -4,8 +4,8 @@ using System.Linq;
 
 namespace Compile.Engine.Cards
 {
-    // The text of the Main Set 1 cards (cards.json, with the Codex errata), by card id. Phase 5 adds the
-    // Protocols in waves; see NotYetWritten.
+    // The text of the Main Set 1 cards (cards.json, with the Codex errata), by card id, written in Waves
+    // A to C of Phase 5.
     public static class MainSet1
     {
         public static CardEffects Effects { get; } = new CardEffects("MainSet1")
@@ -26,13 +26,19 @@ namespace Compile.Engine.Cards
             .Add("Spirit_0", new Spirit0()).Add("Spirit_1", new Spirit1()).Add("Spirit_2", new Spirit2())
             .Add("Spirit_3", new Spirit3()).Add("Spirit_4", new Spirit4()).Add("Spirit_5", new YouDiscardOne())
             .Add("Water_0", new Water0()).Add("Water_1", new Water1()).Add("Water_2", new Water2())
-            .Add("Water_3", new Water3()).Add("Water_4", new Water4()).Add("Water_5", new YouDiscardOne());
+            .Add("Water_3", new Water3()).Add("Water_4", new Water4()).Add("Water_5", new YouDiscardOne())
+            // Wave C
+            .Add("Darkness_0", new Darkness0()).Add("Darkness_1", new Darkness1()).Add("Darkness_2", new Darkness2())
+            .Add("Darkness_3", new Darkness3()).Add("Darkness_4", new Darkness4()).Add("Darkness_5", new YouDiscardOne())
+            .Add("Life_0", new Life0()).Add("Life_1", new Life1()).Add("Life_2", new Life2())
+            .Add("Life_3", new Life3()).Add("Life_4", new Life4()).Add("Life_5", new YouDiscardOne())
+            .Add("Light_0", new Light0()).Add("Light_1", new Light1()).Add("Light_2", new Light2())
+            .Add("Light_3", new Light3()).Add("Light_4", new Light4()).Add("Light_5", new YouDiscardOne())
+            .Add("Psychic_0", new Psychic0()).Add("Psychic_1", new Psychic1()).Add("Psychic_2", new Psychic2())
+            .Add("Psychic_3", new Psychic3()).Add("Psychic_4", new Psychic4()).Add("Psychic_5", new YouDiscardOne());
 
-        // Protocols whose cards don't have their text yet (Wave C).
-        public static IReadOnlyList<string> NotYetWritten { get; } = new[]
-        {
-            "Life", "Light", "Darkness", "Psychic",
-        };
+        // Protocols whose cards don't have their text yet: none, every Main Set 1 card is written.
+        public static IReadOnlyList<string> NotYetWritten { get; } = new string[0];
     }
 
     // Shared helpers for writing card text.
@@ -42,6 +48,10 @@ namespace Compile.Engine.Cards
         protected static IEnumerable<Op> Text(params Op[] sentences) => sentences;
 
         protected static IEnumerable<int> Lines => Enumerable.Range(0, GameState.LineCount);
+
+        // The stack this card is in (bottom to top), or null if it isn't in the field.
+        protected static IReadOnlyList<CardInstance> StackWith(Effect e) =>
+            e.Game.State.Lines.SelectMany(l => new[] { l.Stack(0), l.Stack(1) }).FirstOrDefault(s => s.Contains(e.Source));
 
         // "left line", from this player's seat.
         protected static string LineName(int seat, int fieldLine) =>

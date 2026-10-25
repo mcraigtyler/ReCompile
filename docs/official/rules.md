@@ -283,6 +283,34 @@ Situations the rulesheet and Codex don't settle, and how this game handles them.
 | Forced Refresh | With no cards in hand, the Refresh happens automatically at the start of your Action step. |
 | Recompile from an empty deck | Drawing your opponent's top card is a draw, so if their deck is empty, their trash is shuffled into a new deck first. If both are empty, you get nothing. |
 
+### Card rulings
+
+How this game reads card text the Codex doesn't spell out. Each one has a test in `Tests/EditMode/Engine/Cards/`.
+
+| Card | Ruling |
+|---|---|
+| "All cards in 1 line" text (Death 2, Water 3) | Only lines with a card it would affect are offered, if any line has one: text that can change the game must (Codex, Card Text) |
+| Death 1 | "Then, delete this card" is its own sentence, so it deletes itself even if you decline to draw (and, as top text, even while covered) |
+| Death 2, Water 3 | Face-down cards are worth 2, so they count as "values of 1 or 2" and "a value of 2" |
+| Metal 0 | Reduces the opponent's total in its line by 2, but not below 0 |
+| Metal 1 | "On their next turn" is the opponent's next turn after the text resolves, and only while Metal 1 is face-up and uncovered |
+| Metal 3, Gravity 0 | "Cards in this line" counts both players' cards (Gravity 0 counts itself) |
+| Gravity 0 | The cards go straight in under it, so nothing is covered or uncovered and no text is set off |
+| Gravity 1 | Any uncovered card on either side; one in this line goes to a line its chooser picks, one elsewhere comes to this line, on its own side |
+| Gravity 2 | A card flipped face-up has its middle text resolve before it's shifted |
+| Speed 2 | Its owner picks where it goes, whoever is compiling |
+| Spirit 1 | Its Start "either discard 1 card or flip this card" flips without asking when its owner has no cards |
+| Spirit 3 | "After you draw cards" includes drawing from the opponent's deck on a Recompile; its owner may decline |
+| Water 1, Life 0 | When the order of "each" matters, the player whose turn it is picks it |
+| Life 0 | "Each line where you have a card" is fixed when the text resolves and includes its own line, so it usually covers itself, and its End text then deletes it |
+| Life 1 | The second flip may pick the same card again |
+| Life 3 | With an empty deck nothing happens, and it doesn't ask for a line |
+| Darkness 1 | The shift is optional, and Darkness 1's owner picks the line |
+| Darkness 2 | Only face-down cards in its own stack are worth 4, also while it's covered; its middle text can flip a covered card on either side of the line |
+| Light 2 | After the reveal, its owner may shift the card (still face-down), flip it where it is, or leave it |
+| Psychic 1 | Also covers plays made by card text, and works while covered |
+| Psychic 3 | Psychic 3's owner picks which of the opponent's cards is shifted, and where |
+
 ---
 
 *Compile © 2024 Flat River Group, LLC — Greater Than Games. Design by Michael Yang.*

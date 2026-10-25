@@ -591,6 +591,9 @@ namespace Compile.Client.Screens
             if (ChoosingPlay && (!Choice.ValidCards.Contains(id) || !Choice.ValidLines.Contains(line) ||
                                  (faceUp ? !Choice.FaceUpAllowed : !Choice.FaceDownAllowed)))
                 return false;
+            var lines = faceUp ? info.FaceUpLines : info.FaceDownLines;
+            if (lines != null)
+                return lines[line];
             return !faceUp || _view.Lines[line].Accepts(info.Protocol);
         }
 

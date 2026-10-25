@@ -39,6 +39,11 @@ namespace Compile.Engine.Views
         public bool LocalOwner { get; set; }
         public bool Revealed { get; set; }          // shown to both players for now by card text
 
+        // Hand cards only: the viewer's lines (from their left) this card may go into, each way, under
+        // the rules and card text now in play. Null elsewhere.
+        public bool[] FaceUpLines { get; set; }
+        public bool[] FaceDownLines { get; set; }
+
         public bool IsHidden => CardId == null;
 
         // In the field, the engine sets the value card text gives it; otherwise it's the printed value

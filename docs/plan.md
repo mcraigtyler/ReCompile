@@ -387,8 +387,8 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 The effect framework, choice kinds, and their UI are built in Phase 4. This phase adds:
 
-- [ ] Card effect classes registered for every card in scope, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect, except the Protocols in `MainSet1.NotYetWritten`; the list shrinks with each wave and the box is ticked when it's empty
-- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change
+- [x] Card effect classes registered for every Main Set 1 card, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect; `MainSet1.NotYetWritten` is now empty. (The expansion's cards come in Wave D.)
+- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change; `Op.Picked`, the card a flip chose even if it wasn't flipped (Light 0)
 - [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
 - [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
 - [ ] The same note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like)
@@ -452,7 +452,17 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
   - Spirit 0: a normal refresh, Control included (Codex)
   - Spirit 3: "after you draw cards" includes drawing from the opponent's deck (a Recompile), and its owner may decline
   - Water 1: an empty deck plays nothing and isn't shuffled (Codex); the player whose turn it is orders the two lines, as with any "each"
-- [ ] Wave C: Life, Light, Darkness, Psychic
+- [x] **Wave C** (24 cards): Darkness, Life, Light, Psychic, with tests in `Tests/EditMode/Engine/Cards/` (`MainSet.LoadC`: Darkness/Life/Light against Psychic/Death/Fire). With it every Main Set 1 card has its text, and `Fuzz_10000RandomGamesWithMainSet1` passes (10,000 games, 76 turns on average). Rulings made here:
+  - Light 0 (Codex): the value is the card's after the flip and anything it set off; if the card left the field instead (Metal 6), it's still "that card", face-up in the trash, so its printed value
+  - Light 2 (Codex): the card is revealed to both players until the text finishes; then its owner may shift it face-down, flip it where it is, or leave it
+  - Light 3 (Codex): both players' face-down cards in the line, covered or not, keep their order and go to the same line, each on its own side
+  - Life 0: "each line where you have a card" is fixed when the text resolves, its own line included (so it usually covers itself, and its errata'd End text then deletes it)
+  - Life 1: the second flip may pick the same card again
+  - Life 3: with an empty deck nothing happens and there's no question
+  - Darkness 1: the shift is optional, and Darkness 1's owner picks the line
+  - Darkness 2: only face-down cards in its own stack are worth 4, and (top text) also while it's covered; its middle text can flip a covered card on either side of the line
+  - Psychic 1: covers plays made by card text as well, and works while covered (top text)
+  - Psychic 3: Psychic 3's owner picks which of the opponent's cards is shifted, and where
 - [ ] **Wave D: Apathy, Hate, Love** (expansion AX01, 18 cards; moved here from its own phase so every card works by the end of Phase 5). A first look at their text shows they mostly reuse existing mechanics:
   - Apathy: a line value modifier; "ignore all middle commands in this line" (the `IgnoresMiddle` rule query)
   - Hate: highest/lowest value targeting; the "After you delete cards" trigger

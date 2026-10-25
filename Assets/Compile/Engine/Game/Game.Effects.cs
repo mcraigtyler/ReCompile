@@ -65,7 +65,7 @@ namespace Compile.Engine
         }
 
         // A card's name as this seat may know it.
-        internal string CardName(CardInstance card, int seat) =>
+        public string CardName(CardInstance card, int seat) =>
             card.FaceUp || card.Owner == seat || State.Revealed.Contains(card) ? card.Spec.ToString() : "a face-down card";
 
         // ---------- Running text ----------
@@ -381,7 +381,11 @@ namespace Compile.Engine
         {
             var valid = Candidates(e, target).Where(CanFlip).ToList();
             PickCards(e, chooser, ChoiceKind.FieldCards, "Flip", Prompt(e, "Flip", target, count, optional, chooser), valid, count, count, optional,
-                cards => FlipCards(e, op, cards));
+                cards =>
+                {
+                    op.Picked = cards.ToList();
+                    FlipCards(e, op, cards);
+                });
         }
 
         // Flips cards one at a time. "When this card would be flipped" text resolves before each flip.

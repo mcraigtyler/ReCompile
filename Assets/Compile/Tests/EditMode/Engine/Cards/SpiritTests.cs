@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 
 namespace Compile.Engine.Tests
@@ -47,6 +48,19 @@ namespace Compile.Engine.Tests
                 hand 0: Death_0
                 hand 1: Fire_0");
             Assert.That(without.CheckPlay(0, without.IdOf("Death_0"), 0, faceUp: true), Is.Not.Null);
+        }
+
+        // The board highlights lines from the view, so the view must carry what card text allows.
+        [Test]
+        public void Spirit1_TheViewOffersEveryLineFaceUp()
+        {
+            var game = MainSet.LoadB(@"
+                line 1: Spirit_1 |
+                hand 0: Death_0
+                hand 1: Fire_0");
+            var card = game.ViewFor(0).Hand.Single(c => c.CardId == "Death_0");
+            Assert.That(card.FaceUpLines, Is.EqualTo(new[] { true, true, true }));
+            Assert.That(card.FaceDownLines, Is.EqualTo(new[] { true, true, true }));
         }
 
         [Test]
