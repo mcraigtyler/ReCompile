@@ -38,6 +38,7 @@ namespace Compile.Client.App
         public int WinnerSeat { get; set; } = -1;   // -1 for a draw
         public EndReason EndReason { get; set; }
         public MatchController Controller { get; set; }   // created by the draft
+        public ReplayController Replay { get; set; }      // set when watching a loaded game rather than playing
 
         public MatchInfo(MatchStart start, bool hotseat = false)
         {

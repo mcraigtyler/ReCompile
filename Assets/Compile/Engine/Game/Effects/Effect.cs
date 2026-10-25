@@ -168,6 +168,9 @@ namespace Compile.Engine
         // What set this text off, if not playing its card.
         internal TextReason? Reason;
 
+        // The text has begun to resolve (its first sentence ran).
+        internal bool Started;
+
         internal readonly List<CardInstance> Revealed = new List<CardInstance>();
 
         internal Effect(Game game, int owner, CardInstance source, Slot slot)

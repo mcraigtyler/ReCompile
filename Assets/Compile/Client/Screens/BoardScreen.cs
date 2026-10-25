@@ -58,17 +58,21 @@ namespace Compile.Client.Screens
 
         ChoiceInfo Choice => _view?.Choice;
         bool Covered => _hud.HandoffShown;
-        bool CanAct => _view != null && _view.CanAct && !Covered;
+        bool CanAct => _view != null && _view.CanAct && !Covered && _replay == null;
+
+        // Watching a loaded game: the board shows it, cards can be read, but moves come from the replay.
+        ReplayController _replay;
         bool ChoosingHandCards => Choice != null && Choice.Kind == ChoiceKind.HandCards;
         bool ChoosingFieldCards => Choice != null && Choice.Kind == ChoiceKind.FieldCards;
         bool ChoosingPlay => Choice != null && Choice.Kind == ChoiceKind.Play;
 
         // A hand card can be played now: in the Action step, or because card text says "play 1 card".
-        bool CanPlay => CanAct || ChoosingPlay && !Covered;
+        bool CanPlay => CanAct || ChoosingPlay && !Covered && _replay == null;
 
         protected override void OnEnter()
         {
             _match = App.Match.Controller;
+            _replay = App.Match.Replay;
             _match.Changed += OnChanged;
             _match.Failed += OnFailed;
 
@@ -104,7 +108,9 @@ namespace Compile.Client.Screens
             _hud.EndTurnPressed += EndTurn;
             _hud.ZoomPressed += () => ZoomHandCard(_selected);
             _hud.TrashPressed += ShowTrash;
-            AddDebugActions();
+            if (_replay == null)
+                AddDebugActions();
+            _hud.SetReplay(_replay != null);
 
             App.CameraRig.Show(Frame);
             Render();
@@ -157,6 +163,14 @@ namespace Compile.Client.Screens
             }
 
             var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            if (_replay != null)
+            {
+                if (keyboard != null && keyboard.rightArrowKey.wasPressedThisFrame)
+                    _replay.Forward();
+                else if (keyboard != null && keyboard.leftArrowKey.wasPressedThisFrame)
+                    _replay.Back();
+                return;
+            }
             if (keyboard != null && !Covered && keyboard.zKey.wasPressedThisFrame &&
                 (keyboard.ctrlKey.isPressed || keyboard.leftCommandKey.isPressed || keyboard.rightCommandKey.isPressed))
                 Undo();
@@ -219,7 +233,7 @@ namespace Compile.Client.Screens
             UpdatePrompt();
             UpdateHandoff();
 
-            if (_view.Stage == GameStage.Over && _resultAt < 0f)
+            if (_view.Stage == GameStage.Over && _resultAt < 0f && _replay == null)
             {
                 var state = _match.Game.State;
                 App.Match.WinnerSeat = state.Winner;
@@ -275,6 +289,11 @@ namespace Compile.Client.Screens
 
         void UpdatePrompt()
         {
+            if (_replay != null)
+            {
+                UpdateReplayPrompt();
+                return;
+            }
             string key = null;
             if (Choice != null)
                 key = $"choice:{Choice.Kind}:{Choice.Prompt}:{_picked.Count}:{_ordered.Count}:{_view.CanUndo}:{Covered}";
@@ -427,7 +446,7 @@ namespace Compile.Client.Screens
 
         void UpdateHandoff()
         {
-            if (!_match.NeedsHandoff || Covered)
+            if (!_match.NeedsHandoff || Covered || _replay != null)
                 return;
             var seat = _match.SeatToMove;
             Select(-1, true);
@@ -496,6 +515,11 @@ namespace Compile.Client.Screens
 
         void Submit(Intent intent)
         {
+            if (_replay != null)
+            {
+                App.Hud.Toast("This is a replay. Press Play from here to carry on playing.");
+                return;
+            }
             var error = _match.Submit(intent);
             if (error != null)
                 App.Hud.Toast(error, error: true);
@@ -926,13 +950,70 @@ namespace Compile.Client.Screens
             _hud.ShowTrash(local ? "Your trash" : $"{side.Name}'s trash", side.Trash, ZoomCard);
         }
 
+        // ---------- Replay ----------
+
+        void UpdateReplayPrompt()
+        {
+            var r = _replay;
+            var key = $"replay:{r.Position}:{Viewer}:{_promptWide}";
+            if (key == _promptKey)
+                return;
+            _promptKey = key;
+            var moves = r.Count - r.First;
+            var round = (r.Turn + 1) / 2;
+            var text = $"REPLAY - turn {round}, move {r.Position - r.First} of {moves}";
+            if (r.LastSeat >= 0)
+                text += string.Format(Hint, $"<noparse>{_match.NameOf(r.LastSeat)}: {r.LastStep}</noparse>");
+            else
+                text += string.Format(Hint, "The game begins. Next > plays the first move (or use the arrow keys).");
+            if (r.Over && r.AtEnd)
+                text += string.Format(Hint, "The game is over.");
+            text += string.Format(Hint, $"Seen from {_match.NameOf(Viewer)}'s seat.");
+
+            // Tall screens put the buttons in one row, so their labels are short.
+            var wide = _hud.Wide;
+            _hud.ShowPrompt(text,
+                (wide ? "< Back" : "<", ButtonStyle.Secondary, () => _replay.Back()),
+                (wide ? "Next >" : ">", ButtonStyle.Primary, () => _replay.Forward()),
+                (wide ? "<< Turn" : "<<", ButtonStyle.Quiet, () => _replay.PreviousTurn()),
+                (wide ? "Turn >>" : ">>", ButtonStyle.Quiet, () => _replay.NextTurn()),
+                (wide ? "Switch side" : "Side", ButtonStyle.Quiet, () => _match.HandTo(1 - Viewer)),
+                (wide ? "Play from here" : "Play on", ButtonStyle.Secondary, PlayFromHere),
+                ("Leave", ButtonStyle.Quiet, () => InMatch.Leave(App)));
+            SetEnabled(0, !r.AtStart);
+            SetEnabled(1, !r.AtEnd);
+            SetEnabled(2, !r.AtStart);
+            SetEnabled(3, !r.AtEnd);
+            SetEnabled(5, !r.Over);
+        }
+
+        void SetEnabled(int button, bool on)
+        {
+            var skin = _hud.PromptButton(button);
+            if (skin != null)
+                skin.Interactable = on;
+        }
+
+        // A hot-seat game from this move on, with its own game log.
+        void PlayFromHere()
+        {
+            var r = _replay;
+            if (r.Over)
+                return;
+            var game = r.Build(r.Position, record: true);
+            GameLog.Describe(game.Record, $"hot-seat, carried on from a loaded game after move {r.Position - r.First}");
+            var controller = new MatchController(game, SeatKind.Human, SeatKind.Human, viewer: r.SeatToMove(game), botSeed: App.Match.Start.Seed);
+            App.Match = new MatchInfo(App.Match.Start, hotseat: true) { Controller = controller };
+            App.Nav.Go(new BoardScreen());
+        }
+
         // ---------- Game log ----------
 
         void SaveLog()
         {
             try
             {
-                App.Hud.Toast(GameLog.Save(_match.Game.Record), seconds: 6f);
+                App.Hud.Toast(GameLog.Save(_match.Game), seconds: 6f);
             }
             catch (Exception e)
             {
@@ -947,7 +1028,7 @@ namespace Compile.Client.Screens
             App.Hud.Zoom.Hide();
             _hud.ShowPrompt("Something went wrong, and the game can't continue. Save the game log to report it?",
                 ("Save game log", ButtonStyle.Primary, SaveLog),
-                ("Copy game log", ButtonStyle.Secondary, () => App.Hud.Toast(GameLog.Copy(_match.Game.Record), seconds: 5f)),
+                ("Copy game log", ButtonStyle.Secondary, () => App.Hud.Toast(GameLog.Copy(_match.Game), seconds: 5f)),
                 ("Leave game", ButtonStyle.Quiet, () => InMatch.Leave(App)));
         }
 
@@ -968,7 +1049,8 @@ namespace Compile.Client.Screens
                 });
             }
             _hud.AddDebugAction("Save game log", SaveLog);
-            _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(_match.Game.Record), seconds: 5f));
+            _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(_match.Game), seconds: 5f));
+            _hud.AddDebugAction("Copy game notation", () => App.Hud.Toast(GameLog.CopyNotation(_match.Game)));
             _hud.AddDebugAction("Auto-play a move", _match.AutoPlayViewer);
             _hud.AddDebugAction("Auto-play your turn", () =>
             {

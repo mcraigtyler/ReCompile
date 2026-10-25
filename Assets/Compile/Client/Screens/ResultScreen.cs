@@ -57,9 +57,13 @@ namespace Compile.Client.Screens
             Ui.Button(row, "Leave", ButtonStyle.Quiet, () => InMatch.Leave(App));
             Ui.Button(row, "Rematch", ButtonStyle.Primary, Rematch);
 
-            var record = match.Controller?.Game.Record;
-            if (record != null)
-                Ui.Button(panel, "Save game log", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.Save(record), seconds: 6f));
+            var game = match.Controller?.Game;
+            if (game?.Record != null)
+            {
+                var logRow = Ui.Row(panel, 24f);
+                Ui.Button(logRow, "Save game log", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.Save(game), seconds: 6f));
+                Ui.Button(logRow, "Copy game notation", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.CopyNotation(game)));
+            }
 
             if (match.EndReason == EndReason.Compiled && match.Controller != null)
             {

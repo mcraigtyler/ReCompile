@@ -118,7 +118,7 @@ namespace Compile.Engine.Tests
             Assert.That(game.State.Players[1].Trash.Names(), Is.EqualTo(new[] { "Plague_1" }));
             var forced = game.History.OfType<ChoiceMadeFor>().Single();
             Assert.That(forced.Describe(game.State, 0), Is.EqualTo("Death 4: Plague 1 was the only card that could be deleted, so it was picked for you."));
-            var uncovered = game.History.OfType<CardTextRuns>().Single();
+            var uncovered = game.History.OfType<CardTextRuns>().Single(t => t.Reason != TextReason.Played);
             Assert.That(uncovered.Describe(game.State, 0), Is.EqualTo("Plague 2 was uncovered, so its text resolves."));
 
             Assert.That(game.Pending.Seat, Is.EqualTo(1), "Plague 2: Bob discards 1 or more");

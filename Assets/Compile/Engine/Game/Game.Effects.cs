@@ -84,9 +84,14 @@ namespace Compile.Engine
                     FinishText(e);
                     return;
                 }
-                // Text that didn't come from playing the card says what set it off, so it doesn't seem to come from nowhere.
-                if (sentences == null && e.Reason != null)
-                    Emit(new CardTextRuns(e.Owner, new CardRef(e.Source), e.Reason.Value));
+                // Text says what set it off (the log and the board explain all but plain plays), and later
+                // that it's done (TextEnded), so what it did can be told apart from what it set off.
+                if (sentences == null)
+                {
+                    e.Started = true;
+                    if (e.Source != null)
+                        Emit(new CardTextRuns(e.Owner, new CardRef(e.Source), e.Reason ?? TextReason.Played));
+                }
                 sentences = sentences ?? text.GetEnumerator();
                 if (!sentences.MoveNext())
                 {
@@ -103,16 +108,19 @@ namespace Compile.Engine
         // since its owner could have shuffled their hand.
         void FinishText(Effect e)
         {
-            if (e.Revealed.Count == 0)
-                return;
-            foreach (var card in e.Revealed)
+            if (e.Revealed.Count > 0)
             {
-                State.Revealed.Remove(card);
-                if (State.Players.Any(p => p.HandCards.Contains(card)))
-                    Rekey(card);
+                foreach (var card in e.Revealed)
+                {
+                    State.Revealed.Remove(card);
+                    if (State.Players.Any(p => p.HandCards.Contains(card)))
+                        Rekey(card);
+                }
+                Emit(new RevealEnded(e.Owner));
+                e.Revealed.Clear();
             }
-            Emit(new RevealEnded(e.Owner));
-            e.Revealed.Clear();
+            if (e.Started)
+                Emit(new TextEnded(e.Owner, e.Source == null ? null : new CardRef(e.Source)));
         }
 
         sealed class PendingText

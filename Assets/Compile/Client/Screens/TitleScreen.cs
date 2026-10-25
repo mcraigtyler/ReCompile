@@ -31,6 +31,7 @@ namespace Compile.Client.Screens
             _host = Ui.Button(row, "Host game", ButtonStyle.Primary, () => Continue(new HostScreen()));
             _join = Ui.Button(row, "Join game", ButtonStyle.Secondary, () => Continue(new JoinScreen()));
             _local = Ui.Button(panel, "Local game (two players, one screen)", ButtonStyle.Secondary, () => Continue(new LocalGameScreen()));
+            Ui.Button(panel, "Load game (watch, then play on)", ButtonStyle.Secondary, () => App.Nav.Go(new LoadGameScreen()));
 
             Ui.Button(panel, "How to play", ButtonStyle.Quiet, () => App.Nav.Go(new RulesScreen()));
 

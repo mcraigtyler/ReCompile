@@ -11,6 +11,41 @@ namespace Compile.Engine
     //
     // Work is a stack of steps (last in, first out), which is also how card text interrupts other text.
     // Card text comes from a CardEffects registry (see Game.Effects.cs); with none, cards are text-less.
+    // What a game was made from: Game.Create (a draft from Pool) or Game.CreateDrafted (the Protocols in Drafted).
+    public sealed class GameSetup
+    {
+        public CardCatalog Catalog { get; }
+        public IReadOnlyList<string> Pool { get; }
+        public IReadOnlyList<IReadOnlyList<string>> Drafted { get; }
+        public int FirstSeat { get; }
+        public long Seed { get; }
+        public IReadOnlyList<string> Names { get; }
+        public bool ConfirmEndTurn { get; }
+        public CardEffects Effects { get; }
+
+        internal GameSetup(CardCatalog catalog, IReadOnlyList<string> pool, IReadOnlyList<IReadOnlyList<string>> drafted, int firstSeat, long seed,
+            string name0, string name1, bool confirmEndTurn, CardEffects effects)
+        {
+            Catalog = catalog;
+            Pool = pool;
+            Drafted = drafted;
+            FirstSeat = firstSeat;
+            Seed = seed;
+            Names = new[] { name0, name1 };
+            ConfirmEndTurn = confirmEndTurn;
+            Effects = effects ?? CardEffects.None;
+        }
+
+        // Every Protocol the game can have.
+        public IEnumerable<string> Protocols => Pool ?? Drafted.SelectMany(p => p);
+
+        // A new game made the same way, not yet played.
+        public Game NewGame(CardEffects effects = null, bool record = false) =>
+            Drafted != null
+                ? Game.CreateDrafted(Catalog, Drafted[0], Drafted[1], FirstSeat, Seed, Names[0], Names[1], ConfirmEndTurn, effects ?? Effects, record)
+                : Game.Create(Catalog, Pool, FirstSeat, Seed, Names[0], Names[1], ConfirmEndTurn, effects ?? Effects, record);
+    }
+
     public sealed partial class Game
     {
         public const int HandSize = 5;
@@ -39,6 +74,13 @@ namespace Compile.Engine
         // The game log for bug reports, if this game keeps one (see GameRecord).
         public GameRecord Record { get; }
 
+        // How the game was made, so it can be made again (GameNotation); null for games resumed from a hand-built state.
+        public GameSetup Setup { get; }
+
+        // Every decision that stands, in order: undone ones are gone. Replaying these on a new game made
+        // from Setup gives this game.
+        public IReadOnlyList<Intent> AcceptedIntents => _log;
+
         // With this on (the default), a turn doesn't pass until the player sends EndTurn, so the whole
         // turn can be undone until then. Rule tests turn it off so turns flow straight on.
         public bool ConfirmEndTurn { get; }
@@ -55,8 +97,9 @@ namespace Compile.Engine
         // In the draft: whose move it is (picking, or confirming their picks).
         public int DraftSeat => DraftConfirmSeat >= 0 ? DraftConfirmSeat : State.Draft?.CurrentSeat ?? -1;
 
-        Game(CardCatalog catalog, Func<Game, GameState> setup, bool confirmEndTurn, CardEffects effects, GameRecord record = null)
+        Game(CardCatalog catalog, Func<Game, GameState> setup, bool confirmEndTurn, CardEffects effects, GameRecord record = null, GameSetup info = null)
         {
+            Setup = info;
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _effects = effects ?? CardEffects.None;
             _setup = setup;
@@ -82,7 +125,8 @@ namespace Compile.Engine
                 Draft = new Draft(protocols, firstSeat),
                 FirstSeat = firstSeat,
             }, confirmEndTurn, effects,
-                record ? GameRecord.ForDraft(protocols, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null);
+                record ? GameRecord.ForDraft(protocols, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null,
+                new GameSetup(catalog, protocols, null, firstSeat, seed, name0, name1, confirmEndTurn, effects));
         }
 
         // A new game with the Protocols already chosen (each list left to right from that player's seat).
@@ -96,7 +140,8 @@ namespace Compile.Engine
                 game.StartGame(protocols0, protocols1);
                 return game.State;
             }, confirmEndTurn, effects,
-                record ? GameRecord.ForDrafted(protocols0, protocols1, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null);
+                record ? GameRecord.ForDrafted(protocols0, protocols1, firstSeat, seed, name0, name1, confirmEndTurn, effects) : null,
+                new GameSetup(catalog, null, new[] { protocols0.ToList(), protocols1.ToList() }, firstSeat, seed, name0, name1, confirmEndTurn, effects));
         }
 
         // Resumes a game from a hand-built state (used by tests). The state's phase says where to pick up:

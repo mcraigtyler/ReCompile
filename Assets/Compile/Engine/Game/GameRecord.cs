@@ -15,6 +15,7 @@ namespace Compile.Engine
     public sealed class GameRecord
     {
         public const int FormatVersion = 1;
+        const string NotationHeading = "== Notation ==";
         const string MovesHeading = "== Moves ==";
         const string TranscriptHeading = "== Transcript ==";
 
@@ -134,7 +135,8 @@ namespace Compile.Engine
 
         // ---------- Saving ----------
 
-        public string ToText()
+        // With the game's notation (GameNotation) in its own section first, if given.
+        public string ToText(string notation = null)
         {
             var text = new StringBuilder();
             text.AppendLine("# Compile game log. Share the whole file to report a problem: the Moves replay the game, the Transcript is for reading.");
@@ -153,6 +155,12 @@ namespace Compile.Engine
             if (Error != null)
                 text.AppendLine($"error: {OneLine(Error.Split('\n')[0])}");
             text.AppendLine();
+            if (notation != null)
+            {
+                text.AppendLine(NotationHeading);
+                text.Append(notation);
+                text.AppendLine();
+            }
             text.AppendLine(MovesHeading);
             for (var i = 0; i < _moves.Count; i++)
                 text.AppendLine($"{i + 1} {Format(_moves[i])}{(_comments[i] != null ? "  # " + _comments[i] : "")}");
@@ -170,6 +178,7 @@ namespace Compile.Engine
         {
             var record = new GameRecord();
             var inMoves = false;
+            var inNotation = false;
             var lineNumber = 0;
             foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
             {
@@ -180,8 +189,16 @@ namespace Compile.Engine
                 if (line == MovesHeading)
                 {
                     inMoves = true;
+                    inNotation = false;
                     continue;
                 }
+                if (line == NotationHeading)
+                {
+                    inNotation = true;
+                    continue;
+                }
+                if (inNotation)
+                    continue;
                 var hash = line.IndexOf('#');
                 if (hash >= 0)
                     line = line.Substring(0, hash).Trim();

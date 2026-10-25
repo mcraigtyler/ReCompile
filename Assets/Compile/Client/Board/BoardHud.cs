@@ -62,6 +62,18 @@ namespace Compile.Client.Board
 
         public bool Wide => _wide;
 
+        // Watching a replay: no moves to make, so no action buttons or Debug menu.
+        bool _replay;
+        ButtonSkin _debugButton, _tallDebugButton;
+
+        public void SetReplay(bool on)
+        {
+            _replay = on;
+            foreach (var b in new[] { _debugButton, _tallDebugButton, _tallFaceUp, _tallFaceDown, _tallRefresh, _tallUndo, _tallEndTurn })
+                b.gameObject.SetActive(!on);
+            Layout(_wide);
+        }
+
         public HandView Hand { get; private set; }
         public CardReader Reader { get; private set; }
 
@@ -131,7 +143,7 @@ namespace Compile.Client.Board
             _topRight.sizeDelta = new Vector2(300f, 0f);
             Ui.VStack(_topRight, 12f);
             Fit(_topRight);
-            Ui.Button(_topRight, "Debug", ButtonStyle.Secondary, ToggleDebugMenu);
+            _debugButton = Ui.Button(_topRight, "Debug", ButtonStyle.Secondary, ToggleDebugMenu);
             _logToggle = Ui.Button(_topRight, "Hide log", ButtonStyle.Quiet, ToggleLog);
 
             _log = Box("Log", 440f);
@@ -174,7 +186,8 @@ namespace Compile.Client.Board
         {
             _tallTop = Strip("TallTop");
             _tallOpponentText = TappableText(_tallTop, () => TrashPressed?.Invoke(false));
-            Ui.Size(Ui.Button(_tallTop, "Debug", ButtonStyle.Secondary, ToggleDebugMenu), width: 170f);
+            _tallDebugButton = Ui.Button(_tallTop, "Debug", ButtonStyle.Secondary, ToggleDebugMenu);
+            Ui.Size(_tallDebugButton, width: 170f);
             _tallLogToggle = Ui.Button(_tallTop, "Log", ButtonStyle.Quiet, ToggleLog);
             Ui.Size(_tallLogToggle, width: 130f);
 
@@ -287,9 +300,9 @@ namespace Compile.Client.Board
                 ? $"<size=85%><color=#A397BA>Can't undo: {undoBlockedReason}</color></size>"
                 : _tallLocalSummary;
             foreach (var b in new[] { _tallFaceUp, _tallFaceDown, _tallRefresh })
-                b.gameObject.SetActive(!canEndTurn);
-            _tallUndo.gameObject.SetActive(canEndTurn);
-            _tallEndTurn.gameObject.SetActive(canEndTurn);
+                b.gameObject.SetActive(!canEndTurn && !_replay);
+            _tallUndo.gameObject.SetActive(canEndTurn && !_replay);
+            _tallEndTurn.gameObject.SetActive(canEndTurn && !_replay);
         }
 
         public void SetActionState(bool hasSelection, bool faceUp, bool canFaceUp, bool canRefresh)
@@ -555,6 +568,7 @@ namespace Compile.Client.Board
             var width = ((RectTransform)_root.parent).rect.width;
             foreach (var wideOnly in new[] { _opponentBox, _topRight, _localBox, _actions })
                 wideOnly.gameObject.SetActive(wide);
+            _actions.gameObject.SetActive(wide && !_replay);
             _tallTop.gameObject.SetActive(!wide);
             _tallBottom.gameObject.SetActive(!wide);
 

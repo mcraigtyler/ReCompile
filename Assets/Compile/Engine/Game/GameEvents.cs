@@ -390,9 +390,10 @@ namespace Compile.Engine
             Seat == viewer ? $"You took {Names(Cards)} from {state.Players[FromSeat].Name}'s hand." : $"{Who(state, Seat, viewer)} took {Names(Cards)} from your hand.";
     }
 
-    public enum TextReason { Uncovered, FlippedUp, Start, End, Response }
+    public enum TextReason { Played, Uncovered, FlippedUp, Start, End, Response }
 
-    // A card's text starts to resolve for some reason other than the card being played.
+    // A card's text starts to resolve: because it was played, uncovered, or flipped face-up (middle text),
+    // or set off (Start, End, and reactions). Plain plays aren't logged for players, who just saw the play.
     public sealed class CardTextRuns : GameEvent
     {
         public int Seat { get; }            // the card's owner
@@ -411,6 +412,7 @@ namespace Compile.Engine
         {
             switch (Reason)
             {
+                case TextReason.Played: return viewer == Everyone ? $"{Card.Name}'s text resolves." : null;
                 case TextReason.Uncovered: return $"{Card.Name} was uncovered, so its text resolves.";
                 case TextReason.FlippedUp: return $"{Card.Name} was flipped face-up, so its text resolves.";
                 case TextReason.Start: return $"{Card.Name}: its Start text resolves.";
@@ -418,6 +420,23 @@ namespace Compile.Engine
                 default: return $"{Card.Name} responds.";
             }
         }
+    }
+
+    // A card's text (or a debug effect's, with no card) has finished resolving, or was lost partway.
+    public sealed class TextEnded : GameEvent
+    {
+        public int Seat { get; }
+        public override int Actor => Seat;
+        public CardRef Card { get; }        // null for debug effects
+
+        internal TextEnded(int seat, CardRef card)
+        {
+            Seat = seat;
+            Card = card;
+        }
+
+        public override string Describe(GameState state, int viewer) =>
+            viewer == Everyone ? $"({Card?.Name ?? "The debug effect"}'s text is done.)" : null;
     }
 
     // Card text asked for exactly as many cards as could be picked, so they were picked without asking.

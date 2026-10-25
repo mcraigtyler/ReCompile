@@ -411,35 +411,23 @@ While playing, the player can save a log of the game and share it, so we can tel
 
 **Done when:** a log saved from a WebGL game in the browser replays in a test to the same board, and its transcript reads clearly enough to follow the game without the board.
 
-### Game notation (planned)
+### Game notation
 
-A short record of a game, like chess notation (PGN): a few lines a person can read at a glance, that still replays the game exactly. The full game log stays for bug reports; the notation is for reading back and replaying a game.
+A short record of a game, like chess notation (PGN): a few lines a person can read at a glance, that still replays the game exactly. The full game log stays for bug reports; the notation is for reading back and replaying a game. The spec is [`docs/notation.md`](notation.md).
 
-**The notation** (the full spec goes in `docs/notation.md`):
+In brief: tags with the setup (`[P1 "Tyler"] [First "P2"] [Seed "..."] [Pool "..."]`); cards as a Protocol code and a value (`De1`); lines `a`-`c` from P1's left; turns in pairs (`4. ... | ...`); plays `De1c` / `~Me6b`; effects `+` draw, `-` discard, `x` delete, `^`/`v` flip, `Fi3>b` shift, `<` return, `?` reveal, `=` give, `&` take; card text in parentheses after what set it off, nested as it resolved (`S:De1(ok +Ap0 xPl0 !Pl2(-Dk4,Dk5 -Me6,Ap1,Ap0) xDe1)`); undone moves left out.
 
-- **Tags**, like PGN: `[P1 "Tyler"] [P2 "Player 2"] [First "P2"] [Seed "1808029177"] [Cards "MainSet1"] [Date ...] [Result "P2 1-0, compiled"]`, the draft as `[Draft "P2 De; P1 Fi Pl; P2 Me Ap; P1 Dk"]`, and the lines as `[Lines "a Fi/Ap, b Pl/Me, c Dk/De"]`
-- **Cards** are a two-letter Protocol code and a value: `De1` is Death 1. The codes are Ap Dk De Fi Gr Ha Li Lt Lo Me Pl Ps Sd Sp Wa, unique across every Protocol. The two players never share a Protocol, so a card's name alone says which card it is, with no ids or positions
-- **Lines** are `a`, `b`, `c` from the first player's left, like chess files
-- **Turns** are numbered in pairs, like chess moves: `4. <first player's turn> <second player's turn>`. A turn is its Start text, its action, then its End text, separated by spaces
-- **Actions:** `De1c` plays Death 1 face-up into line c; `~Me6b` plays it face-down; `R` is a refresh, with the cards drawn in braces (`R{Fi2 Fi0 Fi1 Dk5}`); a forced refresh is `R*`; compiling is `#Dk` for Darkness, `##Dk` for a recompile
-- **Card text** goes in parentheses after what set it off, and nests the same way the text resolved:
-  - `+Ap0` is a draw, `-Pl5` a discard, `xPl0` a delete, `^Fi3` a flip face-up, `vFi3` a flip face-down
-  - `Fi3>b` is a shift to line b, `<Fi3` a return to hand, `?Fi3` a reveal, `Fi3=>P1` a card given
-  - `!Pl2(...)` is text set off by uncovering or flipping, `S:De1(...)` and `E:Fi3(...)` are Start and End text
-  - `no` is declining a "may", and `P1:`/`P2:` says whose cards, when that isn't the card's owner
-  - Example: `S:De1(+Ap0 xPl0 !Pl2(-Dk4 -Dk5 P2:-Me6 -Ap1 -Ap0) xDe1)`
-- **Control** is marked `@`; `@P1` means P1 takes it, and rearranging is `@P1:Pl,Dk,Fi`
-- **Undone moves** are left out: the notation is the game as it was played in the end. The engine already keeps that history, since undo replays it
-
-**Tasks:**
-
-- [ ] `docs/notation.md`: the spec, with a worked example from a real game
-- [ ] Engine: card-text events name the card whose text caused them (also fixes the log saying "Player 2 deleted Death 1" without saying it was Death 1's own text); a `TextEnded` event, so text set off in the middle of other text can be bracketed; a `ChoiceDeclined` event for "may" and optional choices
-- [ ] `GameNotation.Write(game)`: builds the notation from the game's history
-- [ ] `GameNotation.Read(text)` and `Replay(catalog, effects)`: turns each item back into the intent that made it (card names to that moment's ids, lines to the player's own numbering, picks to answers). Picks the engine made for a player because there was no choice aren't intents, so the reader expects them and skips them
-- [ ] Tests: 200 recorded random games (with undos) are written, read, and replayed, and the notation and board come out the same; the spec's example parses; bad notation says where it's wrong
-- [ ] Client: **Debug → Copy game notation** and a **Copy game notation** button on the result screen; the notation also goes at the top of the full game log
-- [ ] Later, if wanted: a playback screen that loads notation and steps a game forward and back, move by move
+- [x] `docs/notation.md`: the spec, with a real hot-seat game as the worked example (a test replays it)
+- [x] Engine: `CardTextRuns` for every card's text (a plain play's isn't shown to players), a `TextEnded` event when text finishes or is lost, and `Game.Setup` / `AcceptedIntents` so a game can be made again and its standing decisions replayed. Instead of a `ChoiceDeclined` event, declines are written from the decision itself (`no`)
+- [x] `GameNotation.Write(game)`: replays the game's standing decisions on a new game, writing each decision and then what came of it, without repeating what the decision already said (a delete you chose is written once)
+- [x] `GameNotation.Read(text).Replay(catalog, effects)`: whenever the game waits, the next item is the decision; everything the game then does must match what's written, or it stops and says where. Picks the game made because there was no choice look the same as chosen ones. Notation that stops partway replays to that point
+- [x] Tests (`GameNotationTests`): 200 random games with real text, debug effects, and undos are written, read, and replayed to the same board and the same notation; a game stopped partway; undone moves left out; the spec's example; bad notation
+- [x] Client: **Debug → Copy game notation** and **Copy game notation** on the result screen; the notation is the first section of the saved game log (`== Notation ==`, which `GameRecord.Load` skips)
+- [x] **Load game** on the title screen (and only there): paste a game's notation or a whole game log (a log without notation replays from its Moves). In the browser a page dialog takes the paste or a `.txt` file (`TextDialog.jslib`), since the game can't read the browser's clipboard; elsewhere it reads the clipboard
+- [x] **Replay** on the board (`ReplayController`, `BoardScreen` in replay mode): Back / Next (or the arrow keys), previous / next turn, Switch side, and each move's notation under the step count. The draft is skipped. Moves can't be made, but cards can be hovered and zoomed. Next plays the move so it animates; going back rebuilds the game to that move
+- [x] **Play from here**: a hot-seat game from the move shown, with its own game log (header `mode: hot-seat, carried on from a loaded game after move N`)
+- [x] Tests (`ReplayControllerTests`): the replay starts after the draft; forward then back gives the same game; turn steps land on turn starts; each move has its notation; a game taken over carries on and its log replays; the notation section of a log loads
+- [ ] Hand check in the Editor and in a WebGL build: load a game, step through it, switch sides, and play on from a move
 
 ### Cards, in waves
 

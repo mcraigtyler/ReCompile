@@ -23,7 +23,7 @@ namespace Compile.Client.App
         readonly Random _botRandom;
         float _botWaited;
 
-        public Game Game { get; }
+        public Game Game { get; private set; }
         public int Viewer { get; private set; }
 
         public bool Hotseat => _seats[0] == SeatKind.Human && _seats[1] == SeatKind.Human;
@@ -45,6 +45,15 @@ namespace Compile.Client.App
         }
 
         public SeatKind KindOf(int seat) => _seats[seat];
+
+        // Shows another game in its place (a replay going back a move), seen from the same seat.
+        public void Reset(Game game)
+        {
+            Game = game;
+            Failure = null;
+            _botWaited = 0f;
+            Changed?.Invoke(Array.Empty<GameEvent>());
+        }
 
         public string NameOf(int seat) => Game.State.Players[seat].Name;
 
