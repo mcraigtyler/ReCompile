@@ -84,6 +84,9 @@ namespace Compile.Engine
                     FinishText(e);
                     return;
                 }
+                // Text that didn't come from playing the card says what set it off, so it doesn't seem to come from nowhere.
+                if (sentences == null && e.Reason != null)
+                    Emit(new CardTextRuns(e.Owner, new CardRef(e.Source), e.Reason.Value));
                 sentences = sentences ?? text.GetEnumerator();
                 if (!sentences.MoveNext())
                 {
@@ -148,8 +151,8 @@ namespace Compile.Engine
             });
         }
 
-        // Middle text of cards that just landed face-up, were flipped face-up, or were uncovered.
-        void TriggerMiddle(IEnumerable<CardInstance> cards)
+        // Middle text of cards that just landed face-up (no reason), were flipped face-up, or were uncovered.
+        void TriggerMiddle(IEnumerable<CardInstance> cards, TextReason? reason)
         {
             if (_effects.IsEmpty)
                 return;
@@ -159,7 +162,7 @@ namespace Compile.Engine
                 var fx = EffectOf(card);
                 if (fx == null)
                     continue;
-                var e = new Effect(this, card.Owner, card, Slot.Middle);
+                var e = new Effect(this, card.Owner, card, Slot.Middle) { Reason = reason };
                 var text = fx.Middle(e);
                 if (text != null && e.StillActive)
                     texts.Add(new PendingText { Effect = e, Text = text });
@@ -167,7 +170,7 @@ namespace Compile.Engine
             PushTogether(texts, State.ActiveSeat);
         }
 
-        void TriggerMiddle(CardInstance card) => TriggerMiddle(new[] { card });
+        void TriggerMiddle(CardInstance card, TextReason? reason) => TriggerMiddle(new[] { card }, reason);
 
         // Text on these cards that reacts to the trigger, if the card is in play for its slot right now.
         List<PendingText> Collect(Trigger trigger, int seat, IEnumerable<CardInstance> cards)
@@ -185,6 +188,7 @@ namespace Compile.Engine
                 if (triggered == null)
                     continue;
                 e.Slot = triggered.Slot;
+                e.Reason = trigger == Trigger.Start ? TextReason.Start : trigger == Trigger.End ? TextReason.End : TextReason.Response;
                 if (e.StillActive)
                     texts.Add(new PendingText { Effect = e, Text = triggered.Text });
             }
@@ -308,6 +312,8 @@ namespace Compile.Engine
             min = Math.Min(min, max);
             if (!optional && min == valid.Count)
             {
+                Emit(new ChoiceMadeFor(chooser, e.Source == null ? null : new CardRef(e.Source), verb, valid.Select(c => new CardRef(c)).ToList(),
+                    inHand: kind == ChoiceKind.HandCards));
                 then(valid);
                 return;
             }
@@ -348,11 +354,12 @@ namespace Compile.Engine
             RefreshHand(seat, forced: false);
         }
 
-        internal void DiscardOp(Effect e, Op op, int seat, int min, int max)
+        internal void DiscardOp(Effect e, Op op, int seat, int min, int max, bool optional)
         {
             var hand = State.Players[seat].HandCards.ToList();
-            var prompt = max == int.MaxValue ? $"Discard {min} or more cards" : $"Discard {Plural(min, "card")}";
-            PickCards(e, seat, ChoiceKind.HandCards, "Discard", prompt, hand, min, max, optional: false, cards =>
+            var prompt = max == int.MaxValue ? $"Discard {min} or more cards"
+                : optional ? $"You may discard {Plural(min, "card")}" : $"Discard {Plural(min, "card")}";
+            PickCards(e, seat, ChoiceKind.HandCards, "Discard", prompt, hand, min, max, optional, cards =>
             {
                 Discard(seat, cards.Select(c => c.Id).ToList());
                 foreach (var card in cards)
@@ -385,7 +392,7 @@ namespace Compile.Engine
                     op.Add(card);
                     Emit(new CardsFlipped(e.Owner, new[] { new CardRef(card) }));
                     if (card.FaceUp && IsUncovered(card))
-                        TriggerMiddle(card);
+                        TriggerMiddle(card, TextReason.FlippedUp);
                 });
                 FireCardTrigger(Trigger.WouldBeFlipped, card);
             }
@@ -409,7 +416,7 @@ namespace Compile.Engine
                     op.Add(card);
                 }
                 Emit(new CardsFlipped(e.Owner, flipped.Select(c => new CardRef(c)).ToList()));
-                TriggerMiddle(flipped.Where(c => c.FaceUp && IsUncovered(c)));
+                TriggerMiddle(flipped.Where(c => c.FaceUp && IsUncovered(c)), TextReason.FlippedUp);
             });
             foreach (var card in cards)
                 FireCardTrigger(Trigger.WouldBeFlipped, card);
@@ -484,10 +491,10 @@ namespace Compile.Engine
                     Emit(new CardShifted(e.Owner, new CardRef(move.card), move.from, toLine));
                     // A covered card that lands on top is now uncovered.
                     if (move.card.FaceUp && move.wasCovered)
-                        TriggerMiddle(move.card);
+                        TriggerMiddle(move.card, TextReason.Uncovered);
                 });
             }
-            TriggerMiddle(uncovered);
+            TriggerMiddle(uncovered, TextReason.Uncovered);
         }
 
         // ---------- Building blocks: delete and return ----------
@@ -512,7 +519,7 @@ namespace Compile.Engine
             }
             Emit(new CardsDeleted(cards.Select(c => new CardRef(c)).ToList(), e.Owner));
             FireTrigger(Trigger.AfterDelete, e.Owner);
-            TriggerMiddle(uncovered);
+            TriggerMiddle(uncovered, TextReason.Uncovered);
         }
 
         internal void ReturnOp(Effect e, Op op, Target target, int count, bool optional, int chooser)
@@ -534,7 +541,7 @@ namespace Compile.Engine
                 op.Add(card);
             }
             Emit(new CardsReturned(e.Owner, refs));
-            TriggerMiddle(uncovered);
+            TriggerMiddle(uncovered, TextReason.Uncovered);
         }
 
         // Takes cards out of their stacks. Returns the face-up cards this leaves uncovered (their middle text
@@ -599,7 +606,7 @@ namespace Compile.Engine
                 op?.Add(card);
                 Emit(new CardPlayed(seat, new CardRef(card), fieldLine, faceUp, fromDeck));
                 if (faceUp)
-                    TriggerMiddle(card);
+                    TriggerMiddle(card, null);
             });
         }
 

@@ -16,20 +16,35 @@ namespace Compile.Engine.Tests
         const int CardsPerGame = 36;
         const double DebugEffectChance = 0.05;
 
-        [Test]
-        public void Fuzz_200RandomGames() => RunGames(200, firstSeed: 1, viewCheckEvery: 1, undoChance: 0.1, effects: false);
+        // What text the cards have: none, random text made of debug effects (with debug effects set off as
+        // well), or their real Main Set 1 text.
+        public enum CardText
+        {
+            None,
+            Random,
+            MainSet1,
+        }
 
         [Test]
-        public void Fuzz_200RandomGamesWithEffects() => RunGames(200, firstSeed: 1, viewCheckEvery: 1, undoChance: 0.1, effects: true);
+        public void Fuzz_200RandomGames() => RunGames(200, firstSeed: 1, viewCheckEvery: 1, undoChance: 0.1, CardText.None);
 
-        // The done-when checks for Phases 3 and 4. They take several minutes, so they only run when asked for by name.
+        [Test]
+        public void Fuzz_200RandomGamesWithEffects() => RunGames(200, firstSeed: 1, viewCheckEvery: 1, undoChance: 0.1, CardText.Random);
+
+        [Test]
+        public void Fuzz_200RandomGamesWithMainSet1() => RunGames(200, firstSeed: 1, viewCheckEvery: 1, undoChance: 0.1, CardText.MainSet1);
+
+        // The done-when checks for Phases 3, 4, and 5. They take several minutes, so they only run when asked for by name.
         [Test, Explicit("Long run"), Timeout(30 * 60 * 1000)]
-        public void Fuzz_10000RandomGames() => RunGames(10000, firstSeed: 100000, viewCheckEvery: 4, undoChance: 0.01, effects: false);
+        public void Fuzz_10000RandomGames() => RunGames(10000, firstSeed: 100000, viewCheckEvery: 4, undoChance: 0.01, CardText.None);
 
         [Test, Explicit("Long run"), Timeout(30 * 60 * 1000)]
-        public void Fuzz_10000RandomGamesWithEffects() => RunGames(10000, firstSeed: 200000, viewCheckEvery: 4, undoChance: 0.02, effects: true);
+        public void Fuzz_10000RandomGamesWithEffects() => RunGames(10000, firstSeed: 200000, viewCheckEvery: 4, undoChance: 0.02, CardText.Random);
 
-        static void RunGames(int count, int firstSeed, int viewCheckEvery, double undoChance, bool effects)
+        [Test, Explicit("Long run"), Timeout(30 * 60 * 1000)]
+        public void Fuzz_10000RandomGamesWithMainSet1() => RunGames(10000, firstSeed: 300000, viewCheckEvery: 4, undoChance: 0.02, CardText.MainSet1);
+
+        static void RunGames(int count, int firstSeed, int viewCheckEvery, double undoChance, CardText text)
         {
             var timer = Stopwatch.StartNew();
             var stats = new Dictionary<EndReason, int>();
@@ -37,7 +52,7 @@ namespace Compile.Engine.Tests
             var turns = 0L;
             for (var i = 0; i < count; i++)
             {
-                var game = PlayOne(firstSeed + i, viewCheckEvery, undoChance, effects, seen);
+                var game = PlayOne(firstSeed + i, viewCheckEvery, undoChance, text, seen);
                 stats[game.State.EndReason] = stats.TryGetValue(game.State.EndReason, out var n) ? n + 1 : 1;
                 turns += game.State.Turn;
             }
@@ -46,12 +61,13 @@ namespace Compile.Engine.Tests
                                   string.Join(", ", seen.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key} {kv.Value}")));
         }
 
-        static Game PlayOne(int seed, int viewCheckEvery, double undoChance, bool effects, Dictionary<string, int> seen)
+        static Game PlayOne(int seed, int viewCheckEvery, double undoChance, CardText text, Dictionary<string, int> seen)
         {
             var random = new Random(seed);
             var protocols = Scenario.Catalog.Protocols.ToList();
             var game = Game.Create(Scenario.Catalog, protocols, firstSeat: random.Next(2), seed: seed,
-                effects: effects ? RandomText(seed) : null);
+                effects: text == CardText.Random ? RandomText(seed) : text == CardText.MainSet1 ? Compile.Engine.Cards.MainSet1.Effects : null);
+            var effects = text != CardText.None;
 
             for (var step = 0; step < MaxIntentsPerGame; step++)
             {
@@ -61,7 +77,7 @@ namespace Compile.Engine.Tests
                     return game;
                 }
 
-                var intent = RandomBot.Choose(game, random, effects ? DebugEffectChance : 0);
+                var intent = RandomBot.Choose(game, random, text == CardText.Random ? DebugEffectChance : 0);
                 if (game.Pending != null)
                     Count(seen, "?" + game.Pending.Kind);
                 Assert.That(intent, Is.Not.Null, $"seed {seed}: the engine is waiting on nothing ({game.State.Phase})");
@@ -148,7 +164,7 @@ namespace Compile.Engine.Tests
         static string Fingerprint(Game game)
         {
             var state = game.State;
-            string Cards(IEnumerable<CardInstance> cards) => string.Join(",", cards.Select(c => $"{c.Id}:{c.Spec.Id}:{c.Owner}:{(c.FaceUp ? 1 : 0)}"));
+            string Cards(IEnumerable<CardInstance> cards) => string.Join(",", cards.Select(c => $"{c.Id}:{c.Spec.Id}:{c.Owner}:{(c.FaceUp ? 1 : 0)}:{c.MarkedTurn}"));
             var pending = game.Pending;
             var parts = new List<string>
             {

@@ -390,8 +390,9 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 
 The effect framework, choice kinds, and their UI are built in Phase 4. This phase adds:
 
-- [ ] Card effect classes registered for every card in scope, with a test that none is missing
-- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles)
+- [ ] Card effect classes registered for every card in scope, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect, except the Protocols in `MainSet1.NotYetWritten`; the list shrinks with each wave and the box is ticked when it's empty
+- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn
+- [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
 
 ### Cards, in waves
 
@@ -402,6 +403,15 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 | A | Death, Fire, Plague, Metal | Draw, discard, delete, flip, prevent |
 | B | Gravity, Water, Spirit, Speed | Shift, return, covered cards, extra plays |
 | C | Life, Light, Darkness, Psychic | Play from deck, reveal, hand manipulation, rearrange |
+
+- [x] **Wave A** (24 cards; every one has text): Death, Fire, Metal, Plague, with tests in `Tests/EditMode/Engine/Cards/`. Rulings made here:
+  - Death 1: "Then, delete this card" is its own sentence, so the card deletes itself even if you decline to draw, and (top text) even while covered
+  - Metal 0: the opponent's total is reduced by 2 but not below 0
+  - Metal 1: "on their next turn" is the opponent's next turn after the text resolves, and only while Metal 1 is face-up and uncovered (Codex: "provided the text is visible")
+  - Metal 3: "a line with 8 or more cards" counts both players' cards in the line
+  - Death 2: face-down cards are worth 2, so "values of 1 or 2" deletes them
+- [ ] Wave B: Gravity, Water, Spirit, Speed
+- [ ] Wave C: Life, Light, Darkness, Psychic
 
 ### Definition of done (per card)
 

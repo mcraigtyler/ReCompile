@@ -165,6 +165,9 @@ namespace Compile.Engine
         public CardInstance Source { get; }
         public Slot Slot { get; internal set; }
 
+        // What set this text off, if not playing its card.
+        internal TextReason? Reason;
+
         internal readonly List<CardInstance> Revealed = new List<CardInstance>();
 
         internal Effect(Game game, int owner, CardInstance source, Slot slot)
@@ -212,11 +215,12 @@ namespace Compile.Engine
 
         public Op Refresh(int? seat = null) => new Op(op => Game.RefreshOp(op, Seat(seat)));
 
-        // The player discards this many cards of their choice (all of them if they have fewer).
-        public Op Discard(int count, int? seat = null) => new Op(op => Game.DiscardOp(this, op, Seat(seat), count, count));
+        // The player discards this many cards of their choice (all of them if they have fewer). Optional: "you may discard".
+        public Op Discard(int count, int? seat = null, bool optional = false) =>
+            new Op(op => Game.DiscardOp(this, op, Seat(seat), count, count, optional));
 
         // "Discard 1 or more cards."
-        public Op DiscardAny(int min = 1, int? seat = null) => new Op(op => Game.DiscardOp(this, op, Seat(seat), min, int.MaxValue));
+        public Op DiscardAny(int min = 1, int? seat = null) => new Op(op => Game.DiscardOp(this, op, Seat(seat), min, int.MaxValue, optional: false));
 
         // ---- Field cards ----
 
@@ -307,6 +311,21 @@ namespace Compile.Engine
 
         // Card-specific text that isn't a building block. Runs when reached; it may push or ask, like any block.
         public Op Do(Action<Op> action) => new Op(action);
+
+        // ---- Turns ----
+
+        // The number of this player's next turn (their current one doesn't count).
+        public int NextTurnOf(int seat) => Game.State.Turn + (Game.State.ActiveSeat == seat ? 2 : 1);
+
+        // Remembers a turn on this card, for text that lasts until then ("on their next turn"); its rules
+        // read it back as Source.MarkedTurn.
+        public Op MarkTurn(int turn) => new Op(op =>
+        {
+            if (Source == null)
+                return;
+            Source.MarkedTurn = turn;
+            op.MarkDone();
+        });
 
         List<CardInstance> Fixed(CardInstance card) => Game.IsInField(card) ? new List<CardInstance> { card } : new List<CardInstance>();
     }

@@ -55,7 +55,8 @@ namespace Compile.Client.Screens
             var match = App.Match;
             var start = match.Start;
             var names = App.Catalog.Protocols.ToList();
-            var game = Game.Create(App.Catalog, names, start.FirstSeat, start.Seed, match.SeatName(0), match.SeatName(1));
+            var game = Game.Create(App.Catalog, names, start.FirstSeat, start.Seed, match.SeatName(0), match.SeatName(1),
+                effects: Compile.Engine.Cards.MainSet1.Effects);
             var opponent = match.Hotseat ? SeatKind.Human : SeatKind.Bot;
             _match = start.LocalSeat == 0
                 ? new MatchController(game, SeatKind.Human, opponent, viewer: 0, botSeed: start.Seed)

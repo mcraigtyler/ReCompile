@@ -190,6 +190,7 @@ namespace Compile.Client.Screens
             _hud.Hand.ExpectTransfers(leaving, arriving);
             Render(returned);
             ShowReveals(events);
+            ShowNotes(events);
         }
 
         void Render() => Render(null);
@@ -451,15 +452,11 @@ namespace Compile.Client.Screens
                         var spec = App.Cards.GetCard(card.CardId);
                         _table.HoldReveal(card.InstanceId, App.Art.Card(spec.Protocol, spec.Value));
                     }
-                    App.Hud.Toast(reveal.Describe(_match.Game.State, Viewer));
                     continue;
                 }
 
                 if (reveal.Owner == Viewer)
-                {
-                    App.Hud.Toast(reveal.Describe(_match.Game.State, Viewer));
                     continue;
-                }
                 var cards = reveal.Cards.Select(c =>
                 {
                     var spec = App.Cards.GetCard(c.CardId);
@@ -469,6 +466,23 @@ namespace Compile.Client.Screens
                 var title = cards.Count == 1 ? $"{name} revealed a card" : $"{name} revealed their hand · {cards.Count} cards";
                 _hud.ShowCards(title, cards, ZoomCard);
             }
+        }
+
+        // ---------- Notes ----------
+        // Things the board alone doesn't explain (text set off by uncovering or flipping a card, a pick made
+        // for a player, a reveal) also show for a moment, one line each, besides going in the log.
+
+        void ShowNotes(IReadOnlyList<GameEvent> events)
+        {
+            if (Covered)
+                return;
+            var notes = events
+                .Where(e => e is CardTextRuns || e is ChoiceMadeFor || e is CardsRevealed)
+                .Select(e => e.Describe(_match.Game.State, Viewer))
+                .Where(text => !string.IsNullOrEmpty(text))
+                .ToList();
+            if (notes.Count > 0)
+                App.Hud.Toast(string.Join("\n", notes), seconds: Mathf.Clamp(2.5f * notes.Count, 3.5f, 8f));
         }
 
         // ---------- Moves ----------

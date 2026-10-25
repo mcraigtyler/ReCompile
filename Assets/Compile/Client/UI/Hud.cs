@@ -96,13 +96,13 @@ namespace Compile.Client.UI
 
         public void ClearStatus() => _status.gameObject.SetActive(false);
 
-        public void Toast(string message, bool error = false)
+        public void Toast(string message, bool error = false, float seconds = ToastSeconds)
         {
             _toastText.text = message;
             _toastText.color = error ? Palette.Danger : Palette.Ink;
             _toast.gameObject.SetActive(true);
             _toast.SetAsLastSibling();
-            _toastUntil = Time.unscaledTime + ToastSeconds;
+            _toastUntil = Time.unscaledTime + seconds;
         }
 
         public void SetInfo(string richText)

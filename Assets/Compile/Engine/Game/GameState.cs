@@ -28,6 +28,9 @@ namespace Compile.Engine
         public int Owner { get; internal set; }
         public bool FaceUp { get; internal set; }
 
+        // A turn this card's text refers to later (Metal 1: the opponent's next turn), or 0. See Effect.MarkTurn.
+        public int MarkedTurn { get; internal set; }
+
         // Counters that tell card text whether its card is still in play the way it was when the text began:
         // Changes counts leaving the field and flips, Covers counts being covered.
         internal int Changes;

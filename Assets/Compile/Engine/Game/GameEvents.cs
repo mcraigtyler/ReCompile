@@ -382,6 +382,72 @@ namespace Compile.Engine
             Seat == viewer ? $"You took {Names(Cards)} from {state.Players[FromSeat].Name}'s hand." : $"{Who(state, Seat, viewer)} took {Names(Cards)} from your hand.";
     }
 
+    public enum TextReason { Uncovered, FlippedUp, Start, End, Response }
+
+    // A card's text starts to resolve for some reason other than the card being played.
+    public sealed class CardTextRuns : GameEvent
+    {
+        public int Seat { get; }            // the card's owner
+        public override int Actor => Seat;
+        public CardRef Card { get; }
+        public TextReason Reason { get; }
+
+        internal CardTextRuns(int seat, CardRef card, TextReason reason)
+        {
+            Seat = seat;
+            Card = card;
+            Reason = reason;
+        }
+
+        public override string Describe(GameState state, int viewer)
+        {
+            switch (Reason)
+            {
+                case TextReason.Uncovered: return $"{Card.Name} was uncovered, so its text resolves.";
+                case TextReason.FlippedUp: return $"{Card.Name} was flipped face-up, so its text resolves.";
+                case TextReason.Start: return $"{Card.Name}: its Start text resolves.";
+                case TextReason.End: return $"{Card.Name}: its End text resolves.";
+                default: return $"{Card.Name} responds.";
+            }
+        }
+    }
+
+    // Card text asked for exactly as many cards as could be picked, so they were picked without asking.
+    public sealed class ChoiceMadeFor : GameEvent
+    {
+        public int Seat { get; }            // who would have chosen
+        public override int Actor => Seat;
+        public CardRef Source { get; }      // null for debug effects
+        public string Verb { get; }         // "Delete", "Discard", ...
+        public IReadOnlyList<CardRef> Cards { get; }
+        public bool InHand { get; }
+
+        internal ChoiceMadeFor(int seat, CardRef source, string verb, IReadOnlyList<CardRef> cards, bool inHand)
+        {
+            Seat = seat;
+            Source = source;
+            Verb = verb;
+            Cards = cards;
+            InHand = inHand;
+        }
+
+        static string Done(string verb) => verb == "Give" ? "given" : verb.ToLowerInvariant().TrimEnd('e') + (verb == "Flip" ? "ped" : "ed");
+
+        public override string Describe(GameState state, int viewer)
+        {
+            var source = Source?.Name ?? "Debug";
+            var hidden = InHand ? "a card" : "a face-down card";
+            var names = Cards.Select(c => c.NameFor(viewer, hidden)).ToList();
+            var whom = Seat == viewer ? "you" : state.Players[Seat].Name;
+            if (names.Count > 1 && names.Contains(hidden))
+                return $"{source}: {(Seat == viewer ? "You" : whom)} had only {names.Count} cards that could be {Done(Verb)}, so {(names.Count == 2 ? "both" : "all")} were picked.";
+            var list = names.Count == 1 ? names[0] : string.Join(", ", names.Take(names.Count - 1)) + " and " + names[names.Count - 1];
+            return names.Count == 1
+                ? $"{source}: {list} was the only card that could be {Done(Verb)}, so it was picked for {whom}."
+                : $"{source}: {list} were the only cards that could be {Done(Verb)}, so {(names.Count == 2 ? "both" : "all")} were picked for {whom}.";
+        }
+    }
+
     public sealed class DebugEffectUsed : GameEvent
     {
         public int Seat { get; }
