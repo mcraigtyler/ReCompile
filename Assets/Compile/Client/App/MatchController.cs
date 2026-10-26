@@ -1,20 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Compile.Engine;
 using Compile.Engine.Views;
 
 namespace Compile.Client.App
 {
-    public enum SeatKind
-    {
-        Human,
-        Bot,
-    }
-
     // Runs a match on a local engine: the draft, the game, and the result. Each seat is played by a person
     // at this screen (hot-seat) or by RandomBot (the offline stand-in opponent). Screens show the view of
     // the human seat currently at the screen, the Viewer, and send that player's moves through Submit.
-    public sealed class MatchController
+    public sealed class MatchController : IMatch
     {
         const float BotThinkSeconds = 0.9f;
         const float BotQuickSeconds = 0.35f;      // ending a turn or answering a quick question
@@ -22,19 +17,25 @@ namespace Compile.Client.App
         readonly SeatKind[] _seats;
         readonly Random _botRandom;
         float _botWaited;
+        int _version;
+
+        // In hot-seat, notes from moves made while the screen waits to be handed over, for the next player.
+        readonly List<GameEvent> _held = new List<GameEvent>();
 
         public Game Game { get; private set; }
+        public Game LocalGame => Game;
         public int Viewer { get; private set; }
 
         public bool Hotseat => _seats[0] == SeatKind.Human && _seats[1] == SeatKind.Human;
 
-        // Called after every accepted move, with the events it caused.
-        public event Action<IReadOnlyList<GameEvent>> Changed;
+        public event Action<MatchUpdate> Changed;
+        public event Action<string> Rejected { add { } remove { } }     // moves are checked at once here
+        public event Action<string> Failed;
 
-        // Called once if the engine throws. The game can't go on after that, but its log can still be saved.
-        public event Action<Exception> Failed;
-
+        // The exception, if the engine threw. The game can't go on after that, but its log can still be saved.
         public Exception Failure { get; private set; }
+        public bool HasFailed => Failure != null;
+        public string Waiting => null;
 
         public MatchController(Game game, SeatKind seat0, SeatKind seat1, int viewer, int botSeed)
         {
@@ -52,12 +53,14 @@ namespace Compile.Client.App
             Game = game;
             Failure = null;
             _botWaited = 0f;
-            Changed?.Invoke(Array.Empty<GameEvent>());
+            _held.Clear();
+            Raise(Array.Empty<GameEvent>());
         }
 
         public string NameOf(int seat) => Game.State.Players[seat].Name;
 
-        public PlayerView View => Game.ViewFor(Viewer);
+        // In a hot-seat draft, whoever is picking sees the draft as theirs; the picks are no secret.
+        public PlayerView View => Game.ViewFor(Hotseat && Game.State.Stage == GameStage.Draft && Game.DraftSeat >= 0 ? Game.DraftSeat : Viewer);
 
         // The seat the engine is waiting on, or -1 once the game is over.
         public int SeatToMove => RandomBot.SeatToMove(Game);
@@ -68,13 +71,18 @@ namespace Compile.Client.App
         // The viewer may move now (it's their pick, action, choice, or end of turn).
         public bool ViewerToMove => SeatToMove == Viewer && _seats[Viewer] == SeatKind.Human;
 
-        // The next player takes the screen (after the pass screen).
+        // The next player takes the screen (after the pass screen), and sees the notes they missed.
         public void HandTo(int seat)
         {
             if (_seats[seat] != SeatKind.Human || seat == Viewer)
                 return;
             Viewer = seat;
-            Changed?.Invoke(Array.Empty<GameEvent>());
+            var notes = Game.EventsFor(Viewer, _held)
+                .Select(e => e.Kind == EventKind.Revealed ? new EventInfo { Kind = EventKind.Note, Seat = e.Seat, Text = e.Text } : e)
+                .Where(e => e.Kind == EventKind.Note && !string.IsNullOrEmpty(e.Text))
+                .ToList();
+            _held.Clear();
+            Changed?.Invoke(new MatchUpdate { Version = ++_version, View = View, Events = notes });
         }
 
         // Submits a move for the viewer (or for the seat given in the intent). Returns the engine's reason
@@ -92,15 +100,19 @@ namespace Compile.Client.App
             {
                 Failure = e;
                 UnityEngine.Debug.LogException(e);
-                Failed?.Invoke(e);
+                Failed?.Invoke(e.Message);
                 return "Something went wrong.";
             }
             if (!result.Accepted)
                 return result.Error;
             _botWaited = 0f;
-            Changed?.Invoke(result.Events);
+            if (NeedsHandoff)
+                _held.AddRange(result.Events.Where(e => e is CardTextRuns || e is ChoiceMadeFor || e is CardsRevealed));
+            Raise(result.Events);
             return null;
         }
+
+        void Raise(IReadOnlyList<GameEvent> events) => Changed?.Invoke(Game.UpdateFor(View.Seat, events, ++_version));
 
         // Lets bots take their turns, a move at a time, with a pause so people can follow along.
         public void Tick(float deltaTime)

@@ -14,8 +14,8 @@ using UnityEngine;
 
 namespace Compile.Client.Screens
 {
-    // The game board. Renders the PlayerView of whoever is at the screen and sends their moves to the
-    // rules engine through the MatchController. In hot-seat, a pass screen hides everything between
+    // The game board. Renders the PlayerView of whoever is at the screen and sends their moves through the
+    // match (IMatch: a local engine, or the host of an online game). In hot-seat, a pass screen hides everything between
     // players; against the stand-in opponent, the bot moves on its own. Every question card text can ask
     // is answered here: cards on the field or in the hand, lines, options, orders, Protocols, and plays.
     public sealed class BoardScreen : TableScreen
@@ -26,7 +26,7 @@ namespace Compile.Client.Screens
         const float ResultDelay = 1.6f;
         const string Hint = "\n<size=70%><color=#A397BA>{0}</color></size>";
 
-        MatchController _match;
+        IMatch _match;
         BoardTable _table;
         BoardHud _hud;
         PlayerView _view;
@@ -58,7 +58,10 @@ namespace Compile.Client.Screens
 
         ChoiceInfo Choice => _view?.Choice;
         bool Covered => _hud.HandoffShown;
-        bool CanAct => _view != null && _view.CanAct && !Covered && _replay == null;
+
+        // The game is stopped (an error, a lost connection) or on hold (the opponent reconnecting).
+        bool Halted => _match.HasFailed || _match.Waiting != null;
+        bool CanAct => _view != null && _view.CanAct && !Covered && !Halted && _replay == null;
 
         // Watching a loaded game: the board shows it, cards can be read, but moves come from the replay.
         ReplayController _replay;
@@ -67,7 +70,7 @@ namespace Compile.Client.Screens
         bool ChoosingPlay => Choice != null && Choice.Kind == ChoiceKind.Play;
 
         // A hand card can be played now: in the Action step, or because card text says "play 1 card".
-        bool CanPlay => CanAct || ChoosingPlay && !Covered && _replay == null;
+        bool CanPlay => CanAct || ChoosingPlay && !Covered && !Halted && _replay == null;
 
         protected override void OnEnter()
         {
@@ -75,6 +78,7 @@ namespace Compile.Client.Screens
             _replay = App.Match.Replay;
             _match.Changed += OnChanged;
             _match.Failed += OnFailed;
+            _match.Rejected += OnRejected;
 
             _table = new GameObject("BoardTable").AddComponent<BoardTable>();
             _table.transform.SetParent(App.Table, false);
@@ -120,6 +124,7 @@ namespace Compile.Client.Screens
         {
             _match.Changed -= OnChanged;
             _match.Failed -= OnFailed;
+            _match.Rejected -= OnRejected;
             _table.Dispose();
             UnityEngine.Object.Destroy(_hud.gameObject);
             App.Hud.Zoom.Hide();
@@ -153,6 +158,10 @@ namespace Compile.Client.Screens
 
             _match.Tick(deltaTime);
 
+            // Waiting for the opponent to reconnect counts down without any update from the game.
+            if (_view != null && (_match.Waiting != _shownWaiting || _match.HasFailed != _shownFailed))
+                Render();
+
             // The prompt's buttons are laid out for the screen shape; rebuild them after a rotation.
             if (_hud.Wide != _promptWide)
             {
@@ -178,8 +187,9 @@ namespace Compile.Client.Screens
 
         // ---------- Rendering ----------
 
-        void OnChanged(IReadOnlyList<GameEvent> events)
+        void OnChanged(MatchUpdate update)
         {
+            var events = update.Events;
             // Cards changing places in ways the view alone can't tell apart: back to a hand rather than to
             // the trash, and between the two hands.
             var returned = new HashSet<int>();
@@ -187,20 +197,20 @@ namespace Compile.Client.Screens
             var arriving = false;
             foreach (var e in events)
             {
-                switch (e)
+                switch (e.Kind)
                 {
-                    case CardsReturned r:
-                        returned.UnionWith(r.Cards.Select(c => c.InstanceId));
+                    case EventKind.Returned:
+                        returned.UnionWith(e.Cards.Select(c => c.InstanceId));
                         break;
-                    case CardsGiven g:
-                        if (g.Seat == Viewer)
-                            leaving.UnionWith(g.Cards.Select(c => c.InstanceId));
-                        arriving |= g.ToSeat == Viewer;
+                    case EventKind.Given:
+                        if (e.Seat == Viewer)
+                            leaving.UnionWith(e.Cards.Select(c => c.InstanceId));
+                        arriving |= e.ToSeat == Viewer;
                         break;
-                    case HandCardsTaken t:
-                        if (t.FromSeat == Viewer)
-                            leaving.UnionWith(t.Cards.Select(c => c.InstanceId));
-                        arriving |= t.Seat == Viewer;
+                    case EventKind.Taken:
+                        if (e.FromSeat == Viewer)
+                            leaving.UnionWith(e.Cards.Select(c => c.InstanceId));
+                        arriving |= e.Seat == Viewer;
                         break;
                 }
             }
@@ -235,9 +245,8 @@ namespace Compile.Client.Screens
 
             if (_view.Stage == GameStage.Over && _resultAt < 0f && _replay == null)
             {
-                var state = _match.Game.State;
-                App.Match.WinnerSeat = state.Winner;
-                App.Match.EndReason = state.EndReason;
+                App.Match.WinnerSeat = _view.Outcome == Outcome.Draw ? -1 : _view.Outcome == Outcome.LocalWon ? _view.Seat : 1 - _view.Seat;
+                App.Match.EndReason = _view.EndReason;
                 _resultAt = _time + ResultDelay;
             }
         }
@@ -294,6 +303,14 @@ namespace Compile.Client.Screens
                 UpdateReplayPrompt();
                 return;
             }
+            _shownWaiting = _match.Waiting;
+            _shownFailed = _match.HasFailed;
+            if (Halted)
+            {
+                ShowHalt();
+                return;
+            }
+
             string key = null;
             if (Choice != null)
                 key = $"choice:{Choice.Kind}:{Choice.Prompt}:{_picked.Count}:{_ordered.Count}:{_view.CanUndo}:{Covered}";
@@ -315,6 +332,8 @@ namespace Compile.Client.Screens
             if (_view.CanUndo)
                 buttons.Add(("Undo", ButtonStyle.Quiet, Undo));
             var text = Choice.Prompt;
+            if (!string.IsNullOrEmpty(Choice.Resolving))
+                text += string.Format(Hint, "From " + Choice.Resolving);
             if (!_view.CanUndo && _view.LocalTurn && !string.IsNullOrEmpty(_view.UndoBlockedReason))
                 text += string.Format(Hint, "Can't undo: " + _view.UndoBlockedReason);
 
@@ -461,11 +480,11 @@ namespace Compile.Client.Screens
         // ---------- Reveals ----------
         // Revealed field cards turn face-up for a moment with a banner; a revealed hand opens in a panel.
 
-        void ShowReveals(IReadOnlyList<GameEvent> events)
+        void ShowReveals(IReadOnlyList<EventInfo> events)
         {
             if (Covered)
                 return;
-            foreach (var reveal in events.OfType<CardsRevealed>())
+            foreach (var reveal in events.Where(e => e.Kind == EventKind.Revealed))
             {
                 if (!reveal.InHand)
                 {
@@ -494,19 +513,17 @@ namespace Compile.Client.Screens
         // Things the board alone doesn't explain (text set off by uncovering or flipping a card, a pick made
         // for a player, a reveal) also show for a moment, one line each, besides going in the log.
 
-        // Notes that came while the screen was being handed over wait for the next player to take it.
-        readonly List<GameEvent> _unseenNotes = new List<GameEvent>();
-
-        void ShowNotes(IReadOnlyList<GameEvent> events)
+        // Notes that came while the screen was being handed over are sent again, for the next player, when
+        // they take it (MatchController.HandTo).
+        void ShowNotes(IReadOnlyList<EventInfo> events)
         {
-            _unseenNotes.AddRange(events.Where(e => e is CardTextRuns || e is ChoiceMadeFor || e is CardsRevealed));
             if (Covered)
                 return;
-            var notes = _unseenNotes
-                .Select(e => e.Describe(_match.Game.State, Viewer))
+            var notes = events
+                .Where(e => e.Kind == EventKind.Note || e.Kind == EventKind.Revealed)
+                .Select(e => e.Text)
                 .Where(text => !string.IsNullOrEmpty(text))
                 .ToList();
-            _unseenNotes.Clear();
             if (notes.Count > 0)
                 App.Hud.Toast(string.Join("\n", notes), seconds: Mathf.Clamp(2.5f * notes.Count, 3.5f, 8f));
         }
@@ -522,8 +539,11 @@ namespace Compile.Client.Screens
             }
             var error = _match.Submit(intent);
             if (error != null)
-                App.Hud.Toast(error, error: true);
+                OnRejected(error);
         }
+
+        // The host refused a move (online, the reason comes back after the move was sent).
+        void OnRejected(string error) => App.Hud.Toast(error, error: true);
 
         void Undo()
         {
@@ -1016,7 +1036,7 @@ namespace Compile.Client.Screens
         {
             try
             {
-                App.Hud.Toast(GameLog.Save(_match.Game), seconds: 6f);
+                App.Hud.Toast(GameLog.Save(_match.LocalGame), seconds: 6f);
             }
             catch (Exception e)
             {
@@ -1025,14 +1045,51 @@ namespace Compile.Client.Screens
             }
         }
 
-        // The engine threw: nothing more can be played, so offer the log for a bug report.
-        void OnFailed(Exception error)
+        string _shownWaiting;
+        bool _shownFailed;
+
+        void OnFailed(string error)
         {
             App.Hud.Zoom.Hide();
-            _hud.ShowPrompt("Something went wrong, and the game can't continue. Save the game log to report it?",
-                ("Save game log", ButtonStyle.Primary, SaveLog),
-                ("Copy game log", ButtonStyle.Secondary, () => App.Hud.Toast(GameLog.Copy(_match.Game), seconds: 5f)),
-                ("Leave game", ButtonStyle.Quiet, () => InMatch.Leave(App)));
+            Render();
+        }
+
+        // Over the board while the game can't go on: the engine threw (offer the log for a bug report), the
+        // connection was lost (offer to rejoin), or the opponent is reconnecting (a countdown).
+        void ShowHalt()
+        {
+            var local = _match as MatchController;
+            string text;
+            var buttons = new List<(string, ButtonStyle, UnityEngine.Events.UnityAction)>();
+            if (!_match.HasFailed)
+                text = _match.Waiting;
+            else if (local != null)
+            {
+                text = "Something went wrong, and the game can't continue. Save the game log to report it?";
+                buttons.Add(("Save game log", ButtonStyle.Primary, SaveLog));
+                buttons.Add(("Copy game log", ButtonStyle.Secondary, () => App.Hud.Toast(GameLog.Copy(local.Game), seconds: 5f)));
+            }
+            else
+            {
+                text = (_match as RemoteMatch)?.Failure ?? "The game can't continue.";
+                if (App.Session.CanRejoin)
+                    buttons.Add(("Rejoin", ButtonStyle.Primary, () =>
+                    {
+                        App.Session.Rejoin();
+                        App.Hud.Toast("Reconnecting...");
+                    }));
+                if (_match.LocalGame != null)
+                    buttons.Add(("Save game log", ButtonStyle.Secondary, SaveLog));
+            }
+            buttons.Add(("Leave game", ButtonStyle.Quiet, () => InMatch.Leave(App)));
+
+            var key = $"halt:{text}:{buttons.Count}";
+            if (key == _promptKey)
+                return;
+            _promptKey = key;
+            _confirm = null;
+            EndRearrange();
+            _hud.ShowPrompt(text, buttons.ToArray());
         }
 
         // ---------- Debug ----------
@@ -1051,15 +1108,24 @@ namespace Compile.Client.Screens
                     Submit(new DebugEffect(Viewer, key));
                 });
             }
-            _hud.AddDebugAction("Save game log", SaveLog);
-            _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(_match.Game), seconds: 5f));
-            _hud.AddDebugAction("Copy game notation", () => App.Hud.Toast(GameLog.CopyNotation(_match.Game)));
-            _hud.AddDebugAction("Auto-play a move", _match.AutoPlayViewer);
-            _hud.AddDebugAction("Auto-play your turn", () =>
+            // The full log needs the engine: here, or on the host of an online game. An online guest gets it
+            // when the game ends (it would show the host's hidden cards before that).
+            var game = _match.LocalGame;
+            if (game != null)
             {
-                for (var i = 0; i < 50 && _match.SeatToMove == Viewer && _view.Stage == GameStage.Playing; i++)
-                    _match.AutoPlayViewer();
-            });
+                _hud.AddDebugAction("Save game log", SaveLog);
+                _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(game), seconds: 5f));
+                _hud.AddDebugAction("Copy game notation", () => App.Hud.Toast(GameLog.CopyNotation(game)));
+            }
+            if (_match is MatchController local)
+            {
+                _hud.AddDebugAction("Auto-play a move", local.AutoPlayViewer);
+                _hud.AddDebugAction("Auto-play your turn", () =>
+                {
+                    for (var i = 0; i < 50 && local.SeatToMove == Viewer && _view.Stage == GameStage.Playing; i++)
+                        local.AutoPlayViewer();
+                });
+            }
             _hud.AddDebugAction("Concede", () => Submit(new Concede(Viewer)));
             if (App.Session is FakeSessionService fake && !App.Match.Hotseat)
                 _hud.AddDebugAction("Opponent leaves", fake.SimulateOpponentLeft);

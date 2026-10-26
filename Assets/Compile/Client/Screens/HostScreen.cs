@@ -12,6 +12,7 @@ namespace Compile.Client.Screens
         TextMeshProUGUI _code;
         TextMeshProUGUI _waiting;
         float _elapsed;
+        bool _failed;
 
         protected override void Build(RectTransform panel)
         {
@@ -26,20 +27,36 @@ namespace Compile.Client.Screens
 
             _waiting = Ui.Text(panel, "", TextStyle.Small, TextAlignmentOptions.Center);
 
+            var notice = Ui.Text(panel, InMatch.HostingNotice, TextStyle.Small, TextAlignmentOptions.Center);
+            notice.fontSize = 24f;
+
             App.Session.Changed += OnSessionChanged;
+            App.Session.Failed += OnFailed;
             App.Session.Host(App.Profile.DisplayName);
         }
 
         protected override void OnExit()
         {
             App.Session.Changed -= OnSessionChanged;
+            App.Session.Failed -= OnFailed;
             base.OnExit();
         }
 
         public override void Tick(float deltaTime)
         {
+            if (_failed)
+                return;
             _elapsed += deltaTime;
-            _waiting.text = "Waiting for an opponent" + new string('.', 1 + (int)(_elapsed * 2f) % 3);
+            var dots = new string('.', 1 + (int)(_elapsed * 2f) % 3);
+            _waiting.text = App.Session.Lobby == null ? "Creating a room" + dots : "Waiting for an opponent" + dots;
+        }
+
+        void OnFailed(SessionError error)
+        {
+            _failed = true;
+            _code.text = "------";
+            _waiting.text = InMatch.SessionErrorText(error);
+            _waiting.color = Palette.Danger;
         }
 
         void OnSessionChanged()

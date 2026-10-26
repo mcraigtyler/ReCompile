@@ -289,6 +289,7 @@ namespace Compile.Engine
             _steps.Clear();
             _history.Clear();
             _log.Clear();
+            _running.Clear();
             Pending = null;
             _awaitingAction = _awaitingEndTurn = _actedThisTurn = false;
             _draftConfirmSeat = -1;

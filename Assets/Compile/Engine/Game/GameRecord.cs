@@ -308,6 +308,30 @@ namespace Compile.Engine
             }
         }
 
+        // A game's whole log, with its notation first. The log must still be written if the notation can't be
+        // (that's a bug to report too).
+        public static string FullText(Game game)
+        {
+            var notation = GameNotation.TryWrite(game, out var text, out var error) ? text : $"; The notation couldn't be written: {error}{Environment.NewLine}";
+            return game.Record.ToText(notation);
+        }
+
+        // A move as Format writes it ("p1 play 1042 0 up"). Throws FormatException for anything else.
+        public static Intent ParseMove(string text)
+        {
+            var parts = (text ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2 || parts[0].Length != 2 || parts[0][0] != 'p' || parts[0][1] != '0' && parts[0][1] != '1')
+                throw new FormatException("expected a seat (p0 or p1) and a move");
+            try
+            {
+                return Parse(parts[0][1] - '0', parts.Skip(1).ToArray());
+            }
+            catch (Exception e) when (e is IndexOutOfRangeException || e is OverflowException)
+            {
+                throw new FormatException($"bad move '{text}'");
+            }
+        }
+
         static Intent Parse(int seat, string[] args)
         {
             switch (args[0])

@@ -130,6 +130,7 @@ namespace Compile.Engine.Views
         public string SourceCardId { get; set; }            // the card whose text asks ("Fire_0"), if any
         public int SourceInstanceId { get; set; }
         public int SubjectInstanceId { get; set; }          // the card the question is about (e.g. the one being shifted), or 0
+        public string Resolving { get; set; }               // the card text that asks ("Psychic 4's End text"), or null
     }
 
     public sealed class DraftInfo
@@ -141,6 +142,7 @@ namespace Compile.Engine.Views
         public bool LocalConfirm { get; set; }      // the viewer has made this round's picks and must confirm them
         public bool CurrentSeatIsLocal { get; set; }   // the viewer is picking or confirming
         public int PicksRemaining { get; set; }     // in the current player's turn
+        public bool Complete { get; set; }          // every pick is made; the last player still confirms
     }
 
     public enum Outcome
@@ -159,6 +161,7 @@ namespace Compile.Engine.Views
 
     public sealed class PlayerView
     {
+        public int Seat { get; set; }               // the viewer's seat (0 or 1)
         public GameStage Stage { get; set; } = GameStage.Playing;
         public DraftInfo Draft { get; set; }        // only during the draft
         public Outcome Outcome { get; set; }

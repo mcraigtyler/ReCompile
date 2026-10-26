@@ -53,16 +53,27 @@ namespace Compile.Client.Screens
             }
             Ui.Text(panel, reason, TextStyle.Body);
 
+            // Online rematches aren't built yet: both players leave and set up a new room.
+            var online = match.Controller is RemoteMatch;
             var row = Ui.Row(panel, 24f);
-            Ui.Button(row, "Leave", ButtonStyle.Quiet, () => InMatch.Leave(App));
-            Ui.Button(row, "Rematch", ButtonStyle.Primary, Rematch);
+            Ui.Button(row, "Leave", online ? ButtonStyle.Primary : ButtonStyle.Quiet, () => InMatch.Leave(App));
+            if (!online)
+                Ui.Button(row, "Rematch", ButtonStyle.Primary, Rematch);
 
-            var game = match.Controller?.Game;
+            var game = match.Controller?.LocalGame;
+            var remote = match.Controller as RemoteMatch;
             if (game?.Record != null)
             {
                 var logRow = Ui.Row(panel, 24f);
                 Ui.Button(logRow, "Save game log", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.Save(game), seconds: 6f));
                 Ui.Button(logRow, "Copy game notation", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.CopyNotation(game)));
+            }
+            else if (remote?.Notation != null)
+            {
+                // An online guest gets the game's notation when it ends, and replays it into the full log.
+                var logRow = Ui.Row(panel, 24f);
+                Ui.Button(logRow, "Save game log", ButtonStyle.Quiet, () => SaveReplayedLog(remote.Notation));
+                Ui.Button(logRow, "Copy game notation", ButtonStyle.Quiet, () => App.Hud.Toast(GameLog.CopyNotationText(remote.Notation)));
             }
 
             if (match.EndReason == EndReason.Compiled && match.Controller != null)
@@ -81,6 +92,21 @@ namespace Compile.Client.Screens
             var bottom = Spot.y - panelSize.y / 2f;
             var area = Rect.MinMaxRect(-7f, bottom, 7f, MatLayout.ProtocolRows.yMax);
             return new CameraShot(area, Pitch, margin: 0.06f);
+        }
+
+        void SaveReplayedLog(string notation)
+        {
+            try
+            {
+                var game = GameNotation.Read(notation).Replay(App.Catalog, Compile.Engine.Cards.MainSet1.Effects);
+                GameLog.Describe(game.Record, "online, as the guest (rebuilt from the host's notation)");
+                App.Hud.Toast(GameLog.Save(game), seconds: 6f);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                App.Hud.Toast($"Couldn't rebuild the game log: {e.Message}", error: true);
+            }
         }
 
         // Offline rematch: same players, a new draft. The loser of the last game goes first.

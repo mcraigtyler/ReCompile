@@ -35,6 +35,12 @@ namespace Compile.Net
         public event Action<SessionError> Failed;
         public event Action<MatchStart> MatchStarted;
 
+        // The stand-in's matches run locally, against RandomBot.
+        public Compile.Engine.Views.IMatch Match => null;
+        public bool CanRejoin => false;
+        public void Rejoin() { }
+        public void Tick(float deltaTime) => Advance(deltaTime);
+
         public FakeSessionService(int seed = 0) => _random = seed == 0 ? new Random() : new Random(seed);
 
         // Runs due events in time order; events they schedule are timed from when they fired.

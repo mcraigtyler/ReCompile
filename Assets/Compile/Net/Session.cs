@@ -27,6 +27,7 @@ namespace Compile.Net
         RoomFull,
         ConnectionFailed,
         OpponentLeft,
+        ServicesUnavailable,    // Unity Gaming Services couldn't be reached or aren't set up
     }
 
     public sealed class LobbyPlayer
@@ -83,13 +84,24 @@ namespace Compile.Net
         }
     }
 
-    // Finding an opponent and agreeing to start. Implemented by a stand-in for now (FakeSessionService)
-    // and by Unity Gaming Services in Phase 6. All callbacks arrive on the main thread.
+    // Finding an opponent, agreeing to start, and (online) the match itself. Implemented by Unity Gaming
+    // Services (UgsSessionService) and by an offline stand-in (FakeSessionService) for tests. All callbacks
+    // arrive on the main thread.
     public interface ISessionService
     {
         SessionStatus Status { get; }
         bool IsHost { get; }
         LobbyState Lobby { get; }       // null unless Hosting, InLobby, or InMatch
+
+        // The online match once it has started; null when the match runs locally (the stand-in's).
+        Compile.Engine.Views.IMatch Match { get; }
+
+        // The connection to the host was lost during a match, and joining the room again may work.
+        bool CanRejoin { get; }
+        void Rejoin();
+
+        // Called every frame.
+        void Tick(float deltaTime);
 
         event Action Changed;
         event Action<SessionError> Failed;

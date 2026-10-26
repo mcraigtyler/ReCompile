@@ -334,19 +334,26 @@ Card text comes from the community card database at [chuckplayer/compile](https:
 1. Both clients sign in with **UGS Authentication** (anonymous). The display name is stored as a player property.
 2. Host calls `MultiplayerService.CreateSessionAsync` with `MaxPlayers = 2` and Relay networking. The session's join code is the room code.
 3. Guest calls `JoinSessionByCodeAsync(code)`.
-4. NGO starts as Host / Client over **Unity Transport with `UseWebSockets = true`**. WebGL can only use WebSockets.
+4. NGO starts as Host / Client over **Unity Transport with WebSockets**. WebGL can only use WebSockets, so every platform uses Relay's WSS, and the Editor can play a browser.
 
 ### Messages
 
-All gameplay goes through RPCs. NetworkVariables aren't used for game state because each player must get a different view.
+All gameplay goes through named messages (Netcode's `CustomMessagingManager`, reliable and in order). Nothing in the game is a networked object, and NetworkVariables aren't used, because each player must get a different view. Every message is one JSON shape (`MatchMessage`) with a protocol version; no type names are ever read from it, so a message can't become any other kind of object.
 
 | Direction | Message | Payload |
 |---|---|---|
-| Client → Host | `SubmitIntent` | `PlayCard(cardId, line, faceUp)`, `Refresh`, `AnswerChoice(targets)`, `DraftPick(protocol)`, `Rearrange(order)`, `Concede` |
-| Host → Client | `ApplyEvents` | Ordered list of redacted events since last update (for animation) plus a state version number. |
-| Host → Client | `FullSnapshot` | Complete redacted view. Sent on join, on reconnect, and if versions drift. |
-| Host → Client | `PromptChoice` | The pending choice, if it belongs to this player. |
-| Host → Client | `IntentRejected` | Reason, for when a move fails validation. |
+| Guest → Host | `hello` | Display name and player id (to know a returning guest) |
+| Guest → Host | `ready` | Ready or not, in the lobby |
+| Client → Host | `move` | The move as text (`p1 play 1042 0 up`, the game log's format), from a fixed list of kinds. The host only accepts a seat's own moves. |
+| Client → Host | `resync` | Asks for the whole view again |
+| Host → Guest | `lobby` | Both names, who's ready, who goes first |
+| Host → Guest | `start` | First seat and seed (the host is seat 0) |
+| Host → Client | `update` | The player's whole view (with any pending choice of theirs), the events the board needs (redacted for them), and a version number. Sent after every move, on joining, and on reconnecting. |
+| Host → Client | `rejected` | Why a move wasn't allowed |
+| Host → Client | `failed` | The match can't go on |
+| Host → Client | `log` | The whole game's notation, once it's over. A guest replays it into the full game log. |
+
+The host's own screen goes through the same path: it talks to the host's engine over an in-memory link.
 
 ### Redaction (per-player view)
 
@@ -371,7 +378,7 @@ The mitigation path is already built into the architecture: because the engine h
 
 | Situation | Behavior |
 |---|---|
-| Guest disconnects | Host pauses the match and waits up to 2 minutes. Guest rejoins with the same code and receives a `FullSnapshot`. After the timeout, host wins by forfeit. |
+| Guest disconnects | Host pauses the match and waits up to 2 minutes. Guest rejoins (the board's Rejoin button, or Join with the same code after a reload) and receives the whole view. After the timeout, host wins by forfeit. |
 | Host disconnects | The match ends (state lives on the host). Guest sees "Host left the game". A later version could save state for resume. |
 | Tab hidden / backgrounded | Treated as connected while the socket holds. No turn timer in the first release. |
 

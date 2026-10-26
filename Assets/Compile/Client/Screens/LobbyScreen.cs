@@ -40,6 +40,8 @@ namespace Compile.Client.Screens
                 _firstPlayer.Add(Ui.Button(choices, label, ButtonStyle.Secondary, () => App.Session.SetFirstPlayer(choice)));
 
             _hint = Ui.Text(panel, "", TextStyle.Small, TextAlignmentOptions.Center);
+            var notice = Ui.Text(panel, InMatch.HostingNotice, TextStyle.Small, TextAlignmentOptions.Center);
+            notice.fontSize = 24f;
 
             var row = Ui.Row(panel, 24f);
             Ui.Button(row, "Leave", ButtonStyle.Quiet, Leave);
@@ -137,9 +139,10 @@ namespace Compile.Client.Screens
                 App.Session.SetReady(!lobby.Local.IsReady);
         }
 
+        // Online, the session made the match (the host runs it); the stand-in's runs here.
         void OnMatchStarted(MatchStart start)
         {
-            App.Match = new MatchInfo(start);
+            App.Match = new MatchInfo(start) { Controller = App.Session.Match };
             App.Nav.Go(new DraftScreen());
         }
 

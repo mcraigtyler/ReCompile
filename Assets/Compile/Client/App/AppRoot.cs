@@ -3,6 +3,7 @@ using Compile.Client.Screens;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine.Cards;
+using System.Linq;
 using Compile.Net;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -26,19 +27,17 @@ namespace Compile.Client.App
             Application.targetFrameRate = 60;
             Ui.Init(theme);
 
-            var fake = new FakeSessionService();
             _app = new AppContext
             {
                 Theme = theme,
                 Art = art,
                 Cards = CardDatabase.Parse(cardsJson.text, protocolsJson.text),
                 RulesText = rulesText.text,
-                Session = fake,
-                FakeSession = fake,
                 Profile = new PlayerProfile(),
             };
 
             _app.Catalog = _app.Cards.ToCatalog();
+            _app.Session = new UgsSessionService(CreateOnlineGame, allowDebug: Debug.isDebugBuild);
 
             CreateCamera();
             CreateEventSystem();
@@ -53,7 +52,7 @@ namespace Compile.Client.App
         void Update()
         {
             var dt = Time.unscaledDeltaTime;
-            _app.FakeSession?.Advance(dt);
+            _app.Session.Tick(dt);
             _app.Nav.Tick(dt);
         }
 
@@ -71,6 +70,15 @@ namespace Compile.Client.App
             _app.Mat.ClearProtocols();
             _app.Nav.Go(new TitleScreen());
             _app.Hud.Toast("Your opponent left the session.", error: true);
+        }
+
+        // The engine for an online match, on the host: the host is seat 0, the guest seat 1.
+        Compile.Engine.Game CreateOnlineGame(MatchStart start)
+        {
+            var game = Compile.Engine.Game.Create(_app.Catalog, _app.Catalog.Protocols.ToList(), start.FirstSeat, start.Seed,
+                start.LocalName, start.OpponentName, effects: MainSet1.Effects, record: true);
+            Compile.Client.Platform.GameLog.Describe(game.Record, "online, hosted here");
+            return game;
         }
 
         void CreateCamera()

@@ -17,6 +17,7 @@ namespace Compile.Engine
             var other = GameState.Other(viewer);
             var view = new PlayerView
             {
+                Seat = viewer,
                 Stage = state.Stage,
                 Local = Side(viewer, viewer),
                 Opponent = Side(other, viewer),
@@ -48,6 +49,7 @@ namespace Compile.Engine
                     LocalConfirm = DraftConfirmSeat == viewer,
                     CurrentSeatIsLocal = DraftSeat == viewer,
                     PicksRemaining = draft.PicksRemainingThisTurn,
+                    Complete = draft.IsComplete,
                 };
                 return view;
             }
@@ -90,6 +92,7 @@ namespace Compile.Engine
                     SourceCardId = choice.Source?.Spec.Id,
                     SourceInstanceId = choice.Source?.Id ?? 0,
                     SubjectInstanceId = choice.Subject?.Id ?? 0,
+                    Resolving = choice.Kind == ChoiceKind.Order ? null : Resolving(),
                 };
             }
             return view;
@@ -152,6 +155,62 @@ namespace Compile.Engine
 
         bool[] Placements(CardInstance card, int viewer, bool faceUp) => Enumerable.Range(0, GameState.LineCount)
             .Select(local => CheckPlacement(viewer, card, GameState.ToField(viewer, local), faceUp) == null).ToArray();
+
+        // One player's update after a change: the view, and the events the board needs, redacted for them.
+        public MatchUpdate UpdateFor(int viewer, IReadOnlyList<GameEvent> events, int version) => new MatchUpdate
+        {
+            Version = version,
+            View = ViewFor(viewer),
+            Events = EventsFor(viewer, events),
+        };
+
+        public List<EventInfo> EventsFor(int viewer, IReadOnlyList<GameEvent> events)
+        {
+            var infos = new List<EventInfo>();
+            foreach (var e in events)
+            {
+                switch (e)
+                {
+                    case CardsReturned r:
+                        infos.Add(new EventInfo { Kind = EventKind.Returned, Seat = r.Seat, Cards = r.Cards.Select(c => new CardInfo { InstanceId = c.InstanceId }).ToList() });
+                        break;
+                    // Hand cards only by id, and only the viewer's own: the other hand stays hidden.
+                    case CardsGiven g:
+                        infos.Add(new EventInfo
+                        {
+                            Kind = EventKind.Given, Seat = g.Seat, ToSeat = g.ToSeat,
+                            Cards = g.Seat == viewer ? g.Cards.Select(c => new CardInfo { InstanceId = c.InstanceId }).ToList() : new List<CardInfo>(),
+                        });
+                        break;
+                    case HandCardsTaken t:
+                        infos.Add(new EventInfo
+                        {
+                            Kind = EventKind.Taken, Seat = t.Seat, FromSeat = t.FromSeat,
+                            Cards = t.FromSeat == viewer ? t.Cards.Select(c => new CardInfo { InstanceId = c.InstanceId }).ToList() : new List<CardInfo>(),
+                        });
+                        break;
+                    // Shown to both players, so their identities are no secret.
+                    case CardsRevealed v:
+                        infos.Add(new EventInfo
+                        {
+                            Kind = EventKind.Revealed, Seat = v.Seat, Owner = v.Owner, InHand = v.InHand, Text = e.Describe(State, viewer),
+                            Cards = v.Cards.Select(c => new CardInfo
+                            {
+                                InstanceId = c.InstanceId, CardId = c.CardId, Protocol = _catalog.Get(c.CardId).Protocol,
+                                PrintedValue = _catalog.Get(c.CardId).Value, FaceUp = true, LocalOwner = v.Owner == viewer,
+                            }).ToList(),
+                        });
+                        break;
+                    case CardTextRuns _:
+                    case ChoiceMadeFor _:
+                        var text = e.Describe(State, viewer);
+                        if (!string.IsNullOrEmpty(text))
+                            infos.Add(new EventInfo { Kind = EventKind.Note, Seat = e.Actor, Text = text });
+                        break;
+                }
+            }
+            return infos;
+        }
 
         List<LogEntry> Log(int viewer)
         {

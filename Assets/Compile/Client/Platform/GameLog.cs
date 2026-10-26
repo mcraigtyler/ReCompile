@@ -28,9 +28,11 @@ namespace Compile.Client.Platform
         }
 
         // Saves the log and returns a message saying where it went.
-        public static string Save(Game game)
+        public static string Save(Game game) => SaveText(Text(game));
+
+        // A log made elsewhere (an online guest gets the host's when the game ends).
+        public static string SaveText(string text)
         {
-            var text = Text(game);
             var name = $"compile-log-{DateTime.Now:yyyy-MM-dd-HHmmss}.txt";
 #if UNITY_WEBGL && !UNITY_EDITOR
             CompileDownloadText(name, text);
@@ -47,9 +49,11 @@ namespace Compile.Client.Platform
 #endif
         }
 
-        public static string Copy(Game game)
+        public static string Copy(Game game) => CopyText(Text(game));
+
+        public static string CopyText(string text)
         {
-            Clipboard.Copy(Text(game));
+            Clipboard.Copy(text);
             return "Game log copied. Paste it into a message to share it.";
         }
 
@@ -57,17 +61,19 @@ namespace Compile.Client.Platform
         {
             if (!GameNotation.TryWrite(game, out var notation, out var error))
                 return $"Couldn't write the game notation: {error}";
+            return CopyNotationText(notation);
+        }
+
+        public static string CopyNotationText(string notation)
+        {
             Clipboard.Copy(notation);
             return "Game notation copied.";
         }
 
         static string Text(Game game)
         {
-            var record = game.Record;
-            record.SetInfo("saved", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
-            // The log must still save if the notation can't be written (that's a bug to report too).
-            var notation = GameNotation.TryWrite(game, out var text, out var error) ? text : $"; The notation couldn't be written: {error}{Environment.NewLine}";
-            return record.ToText(notation);
+            game.Record.SetInfo("saved", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+            return GameRecord.FullText(game);
         }
     }
 }
