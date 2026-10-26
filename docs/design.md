@@ -437,8 +437,8 @@ Task-level detail for each milestone is in [`plan.md`](plan.md).
 | 4 | **Hot-seat prototype** | The board from milestone 2 runs on the engine; two players on one machine play a full game. |
 | 5 | **Card effects** | All 15 Protocols implemented with tests: the 12 of Main Set 1, then the expansion's Apathy, Hate, and Love. |
 | 6 | **Online play** | Room codes, draft, and full games between two WebGL builds via Relay. |
-| 7 | **Polish and tablets** | Animations, sound, reconnect, rematch. Verified on desktop and tablets in both orientations. |
-| 8 | **Release** | Hosted WebGL build, size and performance checks, rules page linked in-game. |
+| 7 | **Release** | Hosted WebGL build (GitHub Pages), size and performance checks, rules page linked in-game. |
+| 8 | **Polish and tablets** | Animations, sound, reconnect, rematch. Verified on desktop and tablets in both orientations. |
 
 ## 11. Open Questions
 
