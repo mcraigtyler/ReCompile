@@ -1,4 +1,4 @@
-# Compile Online — Implementation Plan
+# ReCompile — Implementation Plan
 
 | | |
 |---|---|
@@ -72,7 +72,7 @@ These apply to every phase.
 - [x] **Card data import.** `Assets/Compile/Data/cards.json` and `protocols.json` (15 Protocols, 90 cards), loaded with `CardDatabase.Parse`. Decision: runtime JSON.
 - [x] **Tests.** 6 EditMode tests for the card data (counts, art for every card, printed values, Codex errata).
 - [x] **Remove bootstrap scripts** from `Assets/Editor/ProjectBootstrap/`.
-- [x] **Link Unity Cloud.** Linked to the new Unity Cloud project "UnityClaude" (`40659849-96d8-4901-8366-44626af0f5f7`) in the GeekCastle organization.
+- [x] **Link Unity Cloud.** Linked to the new Unity Cloud project "UnityClaude" (`40659849-96d8-4901-8366-44626af0f5f7`) in the GeekCastle organization. (The project was later renamed ReCompile, along with its folder and the build name; the cloud project keeps its ID if it's renamed too.)
 - [x] **Test run from the command line.** `unity test . --mode EditMode` passes (6/6) with the Editor closed.
 
 **Done when:** art shows up as sprites in the Editor, card data loads in a test, and the Unity Cloud project ID is set. ✅ Complete (2026-10-11).

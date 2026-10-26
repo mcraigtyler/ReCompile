@@ -43,3 +43,4 @@ Thumbs.db
 
 # Test runner output
 test-results.xml
+test-results-fuzz.xml

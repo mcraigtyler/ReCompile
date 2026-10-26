@@ -1,4 +1,4 @@
-# Compile Online
+# ReCompile
 
 A browser version of **Compile**, the two-player card game by Michael Yang (Greater Than Games). Two players meet with a room code, draft Protocols, and race to compile all three. Built with Unity 6 for WebGL, playable on desktop browsers and large tablets.
 
@@ -12,7 +12,7 @@ A browser version of **Compile**, the two-player card game by Michael Yang (Grea
 
 ## Run the game in the Editor
 
-1. In Unity Hub, choose **Add → Add project from disk** and select this folder. It's listed as **UnityClaude**.
+1. In Unity Hub, choose **Add → Add project from disk** and select this folder. It's listed as **ReCompile**.
 2. Open it. The first import takes a few minutes.
 3. Open `Assets/Scenes/Main.unity`.
 4. Press **Play**.
