@@ -89,6 +89,7 @@ namespace Compile.Engine
                 if (sentences == null)
                 {
                     e.Started = true;
+                    _running.Add(e);
                     if (e.Source != null)
                         Emit(new CardTextRuns(e.Owner, new CardRef(e.Source), e.Reason ?? TextReason.Played));
                 }
@@ -120,7 +121,52 @@ namespace Compile.Engine
                 e.Revealed.Clear();
             }
             if (e.Started)
+            {
+                _running.Remove(e);
                 Emit(new TextEnded(e.Owner, e.Source == null ? null : new CardRef(e.Source)));
+            }
+        }
+
+        // Text that has started and not finished, oldest first: the last is what's resolving now (text it set
+        // off interrupts it and finishes first). Rebuilt with the game on undo.
+        readonly List<Effect> _running = new List<Effect>();
+
+        // What's resolving now, for the player answering a question: "Psychic 4's End text".
+        string Resolving()
+        {
+            var e = _running.LastOrDefault(r => r.Source != null);
+            if (e == null)
+                return null;
+            var name = e.Name;
+            switch (e.Reason)
+            {
+                case TextReason.Start: return $"{name}'s Start text";
+                case TextReason.End: return $"{name}'s End text";
+                case TextReason.Uncovered: return $"{name}, uncovered";
+                case TextReason.FlippedUp: return $"{name}, flipped face-up";
+                case TextReason.Response: return $"{name}, reacting";
+                default: return name;
+            }
+        }
+
+        // The question for texts set off together: what set them off, and which they are.
+        static string OrderPrompt(List<PendingText> texts)
+        {
+            var names = texts.Select(t => t.Effect.Name).ToList();
+            var list = names.Count == 2 ? $"{names[0]} and {names[1]}" : string.Join(", ", names.Take(names.Count - 1)) + ", and " + names[names.Count - 1];
+            var both = names.Count == 2 ? "both" : "all";
+            var reason = texts[0].Effect.Reason;
+            var same = texts.All(t => t.Effect.Reason == reason);
+            string why;
+            if (same && reason == TextReason.End)
+                why = $"Your turn is ending, and {list} {both} have End text.";
+            else if (same && reason == TextReason.Start)
+                why = $"Your turn is starting, and {list} {both} have Start text.";
+            else if (same && reason == TextReason.Response)
+                why = $"{list} {both} react to what just happened.";
+            else
+                why = $"{list} take effect at the same time.";
+            return why + " Choose the order they resolve in.";
         }
 
         sealed class PendingText
@@ -144,7 +190,7 @@ namespace Compile.Engine
                         RunText(t.Effect, t.Text);
                     return;
                 }
-                Ask(new PendingChoice(chooser, ChoiceKind.Order, "Choose the order these effects resolve in", answer =>
+                Ask(new PendingChoice(chooser, ChoiceKind.Order, OrderPrompt(live), answer =>
                 {
                     var order = ((AnswerChoice)answer).Options;
                     for (var i = order.Count - 1; i >= 0; i--)

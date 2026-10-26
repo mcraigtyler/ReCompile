@@ -47,6 +47,21 @@ namespace Compile.Engine.Tests
             Assert.That(game.State.Players[0].Hand.Names(), Is.EquivalentTo(new[] { "Life_5", "Life_1" }));
         }
 
+        // Two End texts at once: the question says why, and names both cards.
+        [Test]
+        public void Light1_AndAnotherEndText_TheOrderQuestionSaysWhy()
+        {
+            var game = MainSet.LoadC(@"
+                line 2: Light_1 |
+                line 1: Life_0 Life_5 |
+                hand 0: Life_4
+                deck 0: Life_1
+                hand 1: Fire_0
+                turn 0 End");
+            Assert.That(game.Pending.Kind, Is.EqualTo(ChoiceKind.Order));
+            Assert.That(game.Pending.Prompt, Does.Contain("Light 1").And.Contain("Life 0").And.Contain("End text"));
+        }
+
         [Test]
         public void Light2_DrawsRevealsThenMayFlipTheCard()
         {

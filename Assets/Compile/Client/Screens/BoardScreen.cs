@@ -332,6 +332,8 @@ namespace Compile.Client.Screens
             if (_view.CanUndo)
                 buttons.Add(("Undo", ButtonStyle.Quiet, Undo));
             var text = Choice.Prompt;
+            if (!string.IsNullOrEmpty(Choice.Resolving))
+                text += string.Format(Hint, "From " + Choice.Resolving);
             if (!_view.CanUndo && _view.LocalTurn && !string.IsNullOrEmpty(_view.UndoBlockedReason))
                 text += string.Format(Hint, "Can't undo: " + _view.UndoBlockedReason);
 

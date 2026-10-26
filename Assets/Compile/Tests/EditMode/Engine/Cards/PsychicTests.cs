@@ -86,6 +86,7 @@ namespace Compile.Engine.Tests
                 hand 1: Fire_0
                 turn 1 End");
             Assert.That(game.Pending.Optional, Is.True);
+            Assert.That(game.ViewFor(1).Choice.Resolving, Is.EqualTo("Psychic 4's End text"), "the question says which text asks");
             game.Pick("Life_5");
             Assert.That(game.State.Players[0].Hand.Names(), Is.EquivalentTo(new[] { "Darkness_5", "Life_5" }));
             Assert.That(game.Find("Psychic_4").FaceUp, Is.False);

@@ -130,6 +130,7 @@ namespace Compile.Engine.Views
         public string SourceCardId { get; set; }            // the card whose text asks ("Fire_0"), if any
         public int SourceInstanceId { get; set; }
         public int SubjectInstanceId { get; set; }          // the card the question is about (e.g. the one being shifted), or 0
+        public string Resolving { get; set; }               // the card text that asks ("Psychic 4's End text"), or null
     }
 
     public sealed class DraftInfo

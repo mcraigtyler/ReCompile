@@ -92,6 +92,7 @@ namespace Compile.Engine
                     SourceCardId = choice.Source?.Spec.Id,
                     SourceInstanceId = choice.Source?.Id ?? 0,
                     SubjectInstanceId = choice.Subject?.Id ?? 0,
+                    Resolving = choice.Kind == ChoiceKind.Order ? null : Resolving(),
                 };
             }
             return view;
