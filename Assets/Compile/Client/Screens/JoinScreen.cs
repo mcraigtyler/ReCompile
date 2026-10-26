@@ -30,8 +30,7 @@ namespace Compile.Client.Screens
             _error.color = Palette.Danger;
             _error.gameObject.SetActive(false);
 
-            var hint = Ui.Text(panel, "Offline preview: codes starting with X or F show the \"room not found\" and \"room full\" errors.",
-                TextStyle.Small);
+            var hint = Ui.Text(panel, InMatch.HostingNotice, TextStyle.Small);
             hint.fontSize = 24f;
 
             var row = Ui.Row(panel, 24f);
@@ -87,13 +86,7 @@ namespace Compile.Client.Screens
 
         void OnFailed(SessionError error)
         {
-            _error.text = error switch
-            {
-                SessionError.RoomNotFound => "Room not found. Check the code with the host and try again.",
-                SessionError.RoomFull => "That room already has two players.",
-                SessionError.InvalidCode => "Room codes are 6 letters and numbers.",
-                _ => "Couldn't connect. Check your connection and try again.",
-            };
+            _error.text = InMatch.SessionErrorText(error);
             _error.gameObject.SetActive(true);
             Refresh();
         }

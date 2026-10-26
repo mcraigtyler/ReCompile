@@ -5,6 +5,7 @@ using Compile.Client.Cards;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine;
+using Compile.Engine.Views;
 using TMPro;
 using UnityEngine;
 
@@ -30,7 +31,8 @@ namespace Compile.Client.Screens
         readonly Dictionary<string, CardView> _cards = new Dictionary<string, CardView>();
         readonly Dictionary<string, Vector2> _home = new Dictionary<string, Vector2>();
         readonly Dictionary<string, (int seat, int slot)> _placed = new Dictionary<string, (int, int)>();
-        MatchController _match;
+        IMatch _match;
+        PlayerView _view;
         float _time;
         float _finishesAt = -1f;
         CardReader _reader;
@@ -38,32 +40,48 @@ namespace Compile.Client.Screens
         TextMeshProUGUI _actionsText;
         ButtonSkin _undo, _confirm;
 
-        Game Game => _match.Game;
-        Draft Draft => Game.State.Draft;
-        bool DraftDone => Game.State.Stage != GameStage.Draft;
-        int Seat => Game.DraftSeat;                         // picking or confirming
-        bool HumanSeat => !DraftDone && _match.KindOf(Seat) == SeatKind.Human;
-        bool CanPick => HumanSeat && Game.DraftConfirmSeat < 0;
-        bool CanConfirm => HumanSeat && Game.DraftConfirmSeat >= 0;
-        bool CanUndo => HumanSeat && Game.CheckUndo(Seat) == null;
+        // The draft as the player at the screen sees it (in hot-seat, whoever is picking).
+        DraftInfo Draft => _view.Draft;
+        bool DraftDone => _view.Stage != GameStage.Draft;
+        int Seat => Draft.CurrentSeatIsLocal ? _view.Seat : 1 - _view.Seat;     // picking or confirming
+        bool CanPick => !DraftDone && Draft.LocalPick;
+        bool CanConfirm => !DraftDone && Draft.LocalConfirm;
+        bool CanUndo => !DraftDone && Draft.CurrentSeatIsLocal && _view.CanUndo;
+
+        IReadOnlyList<string> PicksFor(int seat) => seat == _view.Seat ? Draft.LocalPicks : Draft.OpponentPicks;
 
         protected override void OnEnter()
         {
             App.Mat.ClearProtocols();
 
-            // A new match: names by seat, a human at the local seat, and a person or the bot opposite.
+            // A new local match (names by seat, a human at the local seat, and a person or the bot opposite),
+            // unless the online session already made one.
             var match = App.Match;
             var start = match.Start;
             var names = App.Catalog.Protocols.ToList();
-            var game = Game.Create(App.Catalog, names, start.FirstSeat, start.Seed, match.SeatName(0), match.SeatName(1),
-                effects: Compile.Engine.Cards.MainSet1.Effects, record: true);
-            Compile.Client.Platform.GameLog.Describe(game.Record, match.Hotseat ? "hot-seat" : "against the stand-in opponent");
-            var opponent = match.Hotseat ? SeatKind.Human : SeatKind.Bot;
-            _match = start.LocalSeat == 0
-                ? new MatchController(game, SeatKind.Human, opponent, viewer: 0, botSeed: start.Seed)
-                : new MatchController(game, opponent, SeatKind.Human, viewer: 1, botSeed: start.Seed);
-            match.Controller = _match;
+            if (match.Controller == null)
+            {
+                var game = Game.Create(App.Catalog, names, start.FirstSeat, start.Seed, match.SeatName(0), match.SeatName(1),
+                    effects: Compile.Engine.Cards.MainSet1.Effects, record: true);
+                Compile.Client.Platform.GameLog.Describe(game.Record, match.Hotseat ? "hot-seat" : "against the stand-in opponent");
+                var opponent = match.Hotseat ? SeatKind.Human : SeatKind.Bot;
+                match.Controller = start.LocalSeat == 0
+                    ? new MatchController(game, SeatKind.Human, opponent, viewer: 0, botSeed: start.Seed)
+                    : new MatchController(game, opponent, SeatKind.Human, viewer: 1, botSeed: start.Seed);
+            }
+            _match = match.Controller;
+            _view = _match.View;
             _match.Changed += OnChanged;
+            _match.Rejected += OnRejected;
+
+            // Rejoining a match whose draft is already over: straight to the board.
+            if (DraftDone)
+            {
+                _reader = CardReader.Create(App.Hud.Root);
+                BuildActions();
+                _finishesAt = 0f;
+                return;
+            }
 
             // Hovered Protocols show in a docked panel beside the pool, not over it.
             _reader = CardReader.Create(App.Hud.Root);
@@ -80,6 +98,7 @@ namespace Compile.Client.Screens
         protected override void OnExit()
         {
             _match.Changed -= OnChanged;
+            _match.Rejected -= OnRejected;
             foreach (var (name, card) in _cards)
                 if (!_placed.ContainsKey(name))
                     Object.Destroy(card.gameObject);      // the drafted ones stay on the mat for the board
@@ -137,9 +156,9 @@ namespace Compile.Client.Screens
             _time += deltaTime;
             Layout();
 
+            _match.Tick(deltaTime);
             if (!DraftDone)
             {
-                _match.Tick(deltaTime);
                 var keyboard = UnityEngine.InputSystem.Keyboard.current;
                 if (keyboard != null && keyboard.zKey.wasPressedThisFrame &&
                     (keyboard.ctrlKey.isPressed || keyboard.leftCommandKey.isPressed || keyboard.rightCommandKey.isPressed))
@@ -157,8 +176,10 @@ namespace Compile.Client.Screens
         {
             var error = _match.Submit(intent);
             if (error != null)
-                App.Hud.Toast(error, error: true);
+                OnRejected(error);
         }
+
+        void OnRejected(string error) => App.Hud.Toast(error, error: true);
 
         void OnCardClicked(CardView card)
         {
@@ -178,18 +199,22 @@ namespace Compile.Client.Screens
                 Submit(new EndTurn(Seat));
         }
 
-        void OnChanged(IReadOnlyList<GameEvent> events) => Refresh();
+        void OnChanged(MatchUpdate update)
+        {
+            _view = update.View;
+            Refresh();
+        }
 
         // Puts every Protocol where the engine says it is: in a player's slot, or back in the pool (after an undo).
+        // Once the draft is over the picks stand as they were (confirming the last ones changes nothing).
         void Sync()
         {
-            var state = Game.State;
+            if (DraftDone)
+                return;
             var wanted = new Dictionary<string, (int seat, int slot)>();
             for (var seat = 0; seat < 2; seat++)
             {
-                var picks = state.Stage == GameStage.Draft
-                    ? state.Draft.PicksFor(seat)
-                    : state.Players[seat].Protocols.Select(p => p.Name).ToList();
+                var picks = PicksFor(seat);
                 for (var slot = 0; slot < picks.Count; slot++)
                     wanted[picks[slot]] = (seat, slot);
             }
@@ -289,9 +314,9 @@ namespace Compile.Client.Screens
             var label = $":\\> pick {Mathf.Min(6, CanConfirm ? made : made + 1)} of 6";
             var who = _match.Hotseat ? $"{_match.NameOf(seat)}: " : "";
 
-            if (_match.KindOf(seat) == SeatKind.Bot)
+            if (_match.KindOf(seat) != SeatKind.Human)
             {
-                App.Mat.HighlightSlots(App.Match.IsLocal(seat), draft.PicksFor(seat).Count);
+                App.Mat.HighlightSlots(App.Match.IsLocal(seat), PicksFor(seat).Count);
                 App.Hud.SetStatus(label, $"{_match.NameOf(seat)} is choosing...");
             }
             else if (CanConfirm)
@@ -299,12 +324,12 @@ namespace Compile.Client.Screens
                 App.Mat.HighlightSlots(true, -1);
                 App.Hud.SetStatus(label, $"{who}confirm your picks");
                 _actionsText.text = "Happy with your picks? Confirm them, or undo to change one.";
-                _confirm.SetLabel(draft.IsComplete ? "Start game" : "Confirm");
+                _confirm.SetLabel(draft.Complete ? "Start game" : "Confirm");
             }
             else
             {
-                App.Mat.HighlightSlots(App.Match.IsLocal(seat), draft.PicksFor(seat).Count);
-                var remaining = draft.PicksRemainingThisTurn;
+                App.Mat.HighlightSlots(App.Match.IsLocal(seat), PicksFor(seat).Count);
+                var remaining = draft.PicksRemaining;
                 App.Hud.SetStatus(label, $"{(_match.Hotseat ? who : "Your pick: ")}choose {remaining} Protocol{(remaining > 1 ? "s" : "")}");
                 _actionsText.text = "You can undo a pick until you confirm.";
                 _confirm.SetLabel("Confirm");

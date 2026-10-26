@@ -2,7 +2,7 @@
 
 A browser version of **Compile**, the two-player card game by Michael Yang (Greater Than Games). Two players meet with a room code, draft Protocols, and race to compile all three. Built with Unity 6 for WebGL, playable on desktop browsers and large tablets.
 
-> **Status: Phase 5 (card effects) complete: every card works. Next is Phase 6, online play.** Two people can play a full game of Compile at one screen, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. Every kind of card effect can also be set off from **Debug → Card effects…**. See [`docs/plan.md`](docs/plan.md).
+> **Status: Phase 6 (online play) in progress: written and tested without a network, not yet tried between two browsers.** Two people can play a full game of Compile at one screen or (soon) online, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. Every kind of card effect can also be set off from **Debug → Card effects…**. See [`docs/plan.md`](docs/plan.md).
 
 ## Requirements
 
@@ -19,19 +19,18 @@ A browser version of **Compile**, the two-player card game by Michael Yang (Grea
 
 The scene contains only an `App` object. Everything else (the desk, play mat, camera, and menus) is built in code at startup, so the Hierarchy looks empty until you press Play.
 
-### Trying the offline preview
+### Trying it
 
 | To see | Do this |
 |---|---|
 | A hot-seat game | **Local game** → enter both names → **Start** → take turns drafting (press **Confirm** after your picks) → play. After each turn press **End turn**, then hand over the screen: the next player presses **I'm …: show my hand** |
-| A game against the stand-in opponent | **Host game** → wait about 3 s for the opponent → **I'm ready** → **Start** → draft → play. The opponent makes random legal moves |
+| A game against the stand-in opponent | **Play the computer** → draft → play. The opponent makes random legal moves |
+| An online game | One player: **Host game**, then share the room code. The other: **Join game** with that code. Both press **I'm ready**, and the host presses **Start**. The host's browser runs the game. In the Editor, **Window → Multiplayer → Multiplayer Play Mode** can run a second player, and the Editor can play a browser. Needs Relay and Lobby turned on for the project in the Unity Cloud dashboard |
 | Undo | Make a move, then **Undo** (or Ctrl+Z). You can undo every move in your turn until you press **End turn**, except after drawing cards. In the draft, undo a pick until you press **Confirm** |
 | Skipping ahead | **Debug → Auto-play your turn** makes random moves for you; **Concede** ends the game |
 | Reporting a problem | **Debug → Save game log** (or **Save game log** when the game ends) saves the whole game as a `.txt` file: a download in the browser, `Logs/Games/` in the Editor. **Debug → Copy game log** copies it instead, for pasting into a message. Share the whole file: it replays the game exactly and has a move-by-move transcript. **Copy game notation** gives just the short form, like chess notation ([`docs/notation.md`](docs/notation.md)) |
 | Watching a saved game | **Load game** on the title screen, then paste a game's notation or a saved game log (in the browser you can also pick the `.txt` file). Step through it with **Next** / **Back** or the arrow keys, by turn with **Turn >>** / **<< Turn**, and press **Play from here** to carry on as a hot-seat game from that move |
-| Joining a room | **Join game** with any 6-character code |
-| Join errors | Codes starting with **X** show "Room not found"; codes starting with **F** show "Room is full" |
-| An opponent disconnecting | **Debug → Opponent leaves** on the board (games against the stand-in opponent) |
+| An opponent disconnecting | Close the guest's tab or stop its player: the host's board counts down 2 minutes, then wins by forfeit. A guest who lost the connection gets **Rejoin** (or reloads and joins with the same code) |
 | Wide and tall layouts | Resize the Game view or use a portrait resolution; the camera re-fits each screen |
 
 ## Build and run the WebGL version
@@ -81,7 +80,7 @@ Supported screens are desktops and tablets whose shorter side is at least 768 CS
   unity test . --mode EditMode
   ```
 
-Tests cover the card data, the rules engine (setup, the turn, Control, compiling, hidden information, undo, and the card-effects framework), the Main Set 1 cards written so far, game logs and notation (writing and replaying), the simulated session service, and room code validation. Fuzz tests play 200 random games three ways, checking the rules after every move: without card text, with random text built from the debug effects on every card, and with the real Main Set 1 text. `Fuzz_10000RandomGames`, `Fuzz_10000RandomGamesWithEffects`, and `Fuzz_10000RandomGamesWithMainSet1` run 10,000 each when you ask for them by name.
+Tests cover the card data, the rules engine (setup, the turn, Control, compiling, hidden information, undo, and the card-effects framework), the Main Set 1 cards written so far, game logs and notation (writing and replaying), the simulated session service, room code validation, and online play without a network (whole games through the match messages between a host and a guest, bad messages, and reconnecting). Fuzz tests play 200 random games three ways, checking the rules after every move: without card text, with random text built from the debug effects on every card, and with the real Main Set 1 text. `Fuzz_10000RandomGames`, `Fuzz_10000RandomGamesWithEffects`, and `Fuzz_10000RandomGamesWithMainSet1` run 10,000 each when you ask for them by name.
 
 ## Project layout
 

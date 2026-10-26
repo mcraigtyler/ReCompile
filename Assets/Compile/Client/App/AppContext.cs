@@ -3,6 +3,7 @@ using Compile.Engine;
 using Compile.Client.Table;
 using Compile.Client.UI;
 using Compile.Engine.Cards;
+using Compile.Engine.Views;
 using Compile.Net;
 using UnityEngine;
 
@@ -18,7 +19,6 @@ namespace Compile.Client.App
         public string RulesText;
 
         public ISessionService Session;
-        public FakeSessionService FakeSession;     // null once the real service is used
 
         public Camera Camera;
         public CameraRig CameraRig;
@@ -37,7 +37,7 @@ namespace Compile.Client.App
         public bool Hotseat { get; }                // two people at one screen
         public int WinnerSeat { get; set; } = -1;   // -1 for a draw
         public EndReason EndReason { get; set; }
-        public MatchController Controller { get; set; }   // created by the draft
+        public IMatch Controller { get; set; }            // a local match is created by the draft; an online one by the session
         public ReplayController Replay { get; set; }      // set when watching a loaded game rather than playing
 
         public MatchInfo(MatchStart start, bool hotseat = false)

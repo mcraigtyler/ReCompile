@@ -1,0 +1,11 @@
+<!-- Keeps what online messages are read into (as JSON, by reflection) when builds strip unused code. -->
+<linker>
+  <assembly fullname="Compile.Engine">
+    <namespace fullname="Compile.Engine.Views" preserve="all"/>
+  </assembly>
+  <assembly fullname="Compile.Net">
+    <type fullname="Compile.Net.MatchMessage" preserve="all"/>
+    <type fullname="Compile.Net.LobbyMessage" preserve="all"/>
+    <type fullname="Compile.Net.StartMessage" preserve="all"/>
+  </assembly>
+</linker>

@@ -102,6 +102,9 @@ namespace Compile.Engine.Tests
                     Count(seen, e.GetType().Name);
                 Assert.That(result.Accepted, Is.True, $"seed {seed}: {intent.GetType().Name} rejected: {result.Error}");
                 CheckInvariants(game, seed, checkViews: step % viewCheckEvery == 0, effects);
+                if (step % viewCheckEvery == 0)
+                    for (var viewer = 0; viewer < 2; viewer++)
+                        CheckEvents(game, viewer, result.Events, what => $"seed {seed}, step {step}, viewer {viewer}: {what}");
 
                 if (tryUndo && game.CheckUndo(intent.Seat) == null && !(intent is EndTurn))
                 {
@@ -249,6 +252,27 @@ namespace Compile.Engine.Tests
                 }
             if (view.Choice != null)
                 Assert.That(game.Pending.Seat, Is.EqualTo(viewer), where("a choice shown to the wrong player"));
+        }
+
+        // The events sent with a player's update hold nothing hidden from them either: no card that's hidden
+        // now, no card in the other hand, and no identity unless it was revealed.
+        static void CheckEvents(Game game, int viewer, IReadOnlyList<GameEvent> events, Func<string, string> where)
+        {
+            var state = game.State;
+            var opponent = GameState.Other(viewer);
+            var hiddenIds = new HashSet<int>(state.Players[opponent].Hand.Where(c => !state.Revealed.Contains(c)).Concat(state.Players[opponent].Deck)
+                .Concat(state.Players[viewer].Deck).Select(c => c.Id));
+            foreach (var info in game.EventsFor(viewer, events))
+            {
+                if (info.Kind == EventKind.Given && info.Seat != viewer || info.Kind == EventKind.Taken && info.FromSeat != viewer)
+                    Assert.That(info.Cards, Is.Empty, where("cards from the other hand are listed"));
+                foreach (var card in info.Cards)
+                {
+                    Assert.That(hiddenIds.Contains(card.InstanceId), Is.False, where($"a hidden card's id is in a {info.Kind} event"));
+                    if (info.Kind != EventKind.Revealed)
+                        Assert.That(card.CardId, Is.Null, where($"a {info.Kind} event names a card"));
+                }
+            }
         }
 
         static void CheckEnd(Game game, int seed)

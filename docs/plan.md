@@ -493,29 +493,44 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 
 **Goal:** two players in different browsers find each other with a room code and play a full game.
 
+### Approach
+
+Built in this order, each step tested before the next:
+
+1. **One client path.** The screens stop reading the engine's `Game` directly and go through an `IMatch` interface: the current view, a `MatchUpdate` after each change (version, view, and the events the board needs, already redacted and described for that player by the engine), names, and `Submit`. `MatchController` (hot-seat and the stand-in) becomes the local `IMatch`; the guest's network client is the other. Hot-seat keeps working the same.
+2. **Match protocol in plain C#**, independent of Netcode: a host side that runs the engine and sends each player their own updates, a client side that sends intents, and versioned JSON messages. It runs over an `IMatchLink`, so tests can connect a host and a guest in memory and play whole games, checking the guest's view always equals the engine's view for that seat (no desyncs) and never holds a hidden card.
+3. **Unity Gaming Services**: anonymous sign-in, Sessions for the room code (max 2 players, Relay over WebSockets, WSS on every platform so the Editor and browsers can play each other), and an `IMatchLink` over Netcode's named messages (`CustomMessagingManager`, reliable fragmented), so no networked objects are needed. The lobby (names, ready, first player) is sent over the same link.
+4. **Flow**: the screens on the real service, concede, undo over the network, disconnects, and the hosting notice.
+
+Only the guest's own view crosses the network, so the guest's game log isn't the full one during play. When the game ends, the host sends the full log and notation, so both players can save it from the result screen.
+
 ### Tasks
 
 **Services**
 
-- [ ] Initialize Unity Services; anonymous sign-in; display name stored locally and as a player property
-- [ ] Real `ISessionService`: host creates a Session (max 2 players, Relay, WebSockets) and shows the join code; guest joins by code; errors map to the Phase 1 messages
-- [ ] Unity Transport with `UseWebSockets = true`
+- [ ] Initialize Unity Services; anonymous sign-in (each Editor instance with its own profile, for Multiplayer Play Mode); the display name goes to the host in the guest's hello rather than as a player property. Written (`UgsSessionService`), not yet tried live
+- [ ] Real `ISessionService` (`UgsSessionService`): host creates a private Session (max 2 players, Relay over WSS) and shows its join code; guest joins by code; errors map to the Phase 1 messages, plus "online play isn't available". The lobby (names, ready, first player) goes over the match messages. Written, not yet tried live
+- [ ] Unity Transport over WebSockets (the Session's Relay data sets it), with room for long messages (`MaxPayloadSize` 128 KB; the longest message in test games is about 12 KB). Written, not yet tried live
+- [ ] Unity Cloud: Relay and Lobby (which Sessions use) turned on for the project in the dashboard
 
 **Match protocol**
 
-- [ ] `NetworkMatch` object: RPCs for `SubmitIntent`, `ApplyEvents`, `FullSnapshot`, `PromptChoice`, `IntentRejected`
-- [ ] Host runs the engine; both players (host included) go through the same client path
-- [ ] Per-player redacted events and snapshots; state version numbers
-- [ ] Serialization for intents, events, and views (compact, versioned)
+- [x] Messages for moves, updates (the view plus redacted events, with a version number), refusals, failures, and the notation at the end (`MatchMessage`, JSON with no type names, so a message can't make any other kind of object). Named messages over Netcode (`NetcodeLink`) rather than RPCs on a networked object; the pending choice is part of the view
+- [x] Host runs the engine (`MatchHost`); both players' screens use `RemoteMatch`, the host's over a `LoopbackLink`, so they go through the same path. A seat can only move for itself, and debug effects only work in development builds
+- [x] Per-player redaction: views as before, and the events the board needs (`Game.UpdateFor` / `EventsFor`: transfers, reveals, notes), checked by the fuzzer like the views
+- [x] Moves as text (`GameRecord.Format` / `ParseMove`), from a fixed list of kinds
+- [x] Screens go through `IMatch` (`MatchController` locally, `RemoteMatch` online); hot-seat notes that arrive behind the pass screen are sent again for the next player
+- [x] Tests (`MatchProtocolTests`): whole games played through messages with both screens equal to the engine's view after every move, the notation at the end replaying to the same finish, moves for the other seat, bad and hostile messages, another protocol version, debug effects, and a reconnect
 
 **Flow**
 
-- [ ] Phase 1 screens switched from the stub to the real session service
-- [ ] Concede
-- [ ] Undo and End turn over the network: only the active player can undo; the opponent sees the moves taken back (with a log line) and nothing they couldn't already see
-- [ ] Guest disconnect: pause, rejoin with snapshot, 2-minute forfeit timer
-- [ ] Host disconnect: end match with a clear message
-- [ ] "Matches are hosted by the player who creates the room" notice
+- [x] Host and Join use the real service; "Play the computer" on the title screen keeps the stand-in opponent
+- [x] Concede: leaving a game that's still going concedes it (the Debug menu's Concede too)
+- [ ] Undo and End turn over the network: only the active player can undo (the engine's rule); the opponent sees the moves taken back (with a log line) and nothing they couldn't already see. Comes free with the views; to check live
+- [ ] Guest disconnect: the host's board shows a 2-minute countdown and then wins by forfeit; the guest's board offers Rejoin, which joins the room again and gets the whole view (a reload works too: Join with the same code). Written, not yet tried live
+- [ ] Host disconnect: the guest's board says the host left (no Rejoin). Written, not yet tried live
+- [x] "Matches are hosted by the player who creates the room" on the Host, Join, and Lobby screens
+- [x] At the end, the guest gets the notation and can save the full log (rebuilt by replaying it) or copy the notation. Online rematch isn't built: both players leave and make a new room
 
 **Testing**
 
