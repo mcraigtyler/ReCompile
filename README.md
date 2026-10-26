@@ -58,18 +58,31 @@ python -m http.server 8000 --directory Builds/WebGL
 
 Then open **http://localhost:8000**. Stop the server with Ctrl+C.
 
-The server only serves the files already in `Builds/WebGL/`, so rebuild after changing code. The build files keep the same names, so reload with **Ctrl+Shift+R** (or disable the cache in the browser's dev tools) to make sure the browser isn't running the previous build.
+The server only serves the files already in `Builds/WebGL/`, so rebuild after changing code. Build files are named by a hash of their contents, so a new build has new names and the browser can't mix it up with the previous one.
 
-Any static server works. The build uses Brotli compression with a decompression fallback, so it still loads from servers that don't send `Content-Encoding` headers (like Python's), just a little more slowly the first time.
+Any static server works. The build uses Gzip compression with a decompression fallback, so it still loads from servers that don't send `Content-Encoding` headers (like Python's or GitHub Pages).
 
-### Play it on a tablet
+### Publish it on GitHub Pages
 
-1. Start the Python server above on your computer.
-2. Find your computer's local IP address (`ipconfig` on Windows, `ipconfig getifaddr en0` on macOS).
-3. On a tablet on the same Wi-Fi network, open `http://<your-ip>:8000`.
-4. If your firewall asks, allow Python on private networks.
+Releases are numbered by the project's version (**Player Settings → Version**, shown on the title screen). Each one is published for good in its own folder of the `gh-pages` branch, which holds only builds. The site's front page opens the latest:
 
-Supported screens are desktops and tablets whose shorter side is at least 768 CSS pixels. Smaller screens (phones) show a "screen too small" message.
+- **https://mcraigtyler.github.io/ReCompile/**: the latest release
+- **https://mcraigtyler.github.io/ReCompile/release/v0.0.1/**: that release
+
+To publish one:
+
+1. Raise the version in Player Settings (`0.0.1` → `0.0.2`), commit, and merge to `main`. Releases come from `main`: check it out and pull.
+2. Build to `Builds/WebGL` as above. For a build to share, turn off **Development Build** in the WebGL build profile (that also hides the Debug menu).
+3. Publish it:
+
+   ```powershell
+   powershell -File tools/publish-pages.ps1
+   ```
+
+   It adds `release/v<version>/`, points the front page at it, tags the `main` commit the build came from (`v0.0.2`), and pushes both. It refuses to run off `main` or when your `main` differs from GitHub's, and it refuses a build whose version doesn't match, or a version that's already published. Options: `-NoPush` commits and tags without pushing, to look first; `-Force` replaces a published release and moves its tag; `-Version` names the release instead of reading it from Player Settings.
+4. Once, the first time: in the repo on GitHub, **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
+
+The site updates a minute or two after each push. Pages allows 1 GB, about 40 releases at 25 MB each; delete old `release/` folders from `gh-pages` when it fills. Players on different releases can't play each other if the online messages changed between them; the game says so rather than going wrong.
 
 ## Run the tests
 

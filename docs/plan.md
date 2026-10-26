@@ -34,8 +34,8 @@ flowchart LR
 | 4 | Effects framework + hot-seat (4a–4c) | Two people play a full game on one screen; every kind of card effect works and can be triggered from the Debug menu | L |
 | 5 | Card effects (Main Set 1 and the expansion, in waves A–D) | All 90 cards of the 15 Protocols work, with tests | L |
 | 6 | Online play | Two browsers play a full game with a room code | L |
-| 7 | Polish and tablets | Animations, sound, reconnect; verified on iPad and Android tablets | M |
-| 8 | Release | Public, hosted WebGL build | S |
+| 7 | Release | Public, hosted WebGL build (moved ahead of polish, so the game can be shared and tried online sooner) | S |
+| 8 | Polish and tablets | Animations, sound, reconnect; verified on iPad and Android tablets | M |
 
 **Two tracks after Phase 0.** Phases 1–2 are presentation work (`Compile.Client`) and Phase 3 is rules work (`Compile.Engine`). They don't depend on each other and can run at the same time. They meet in Phase 4, where the board from Phase 2 is wired to the engine from Phase 3.
 
@@ -181,7 +181,7 @@ The board reads a `PlayerView` (the view-model type the engine and network will 
 **Not done in this phase**
 
 - [ ] Turn structure isn't enforced: the stand-in only lets you act in your Action step and plays a simple opponent turn. Start/End effects, Control checks, compiling, and Clear Cache come with the engine in Phase 3.
-- [ ] Card animations are simple glides and flips; richer animation is Phase 7.
+- [ ] Card animations are simple glides and flips; richer animation is Phase 8.
 - [ ] Not yet tried in a desktop browser or on a real tablet.
 
 **Done when:** in the Editor and a WebGL build, one player can draft (Phase 1 screens), land on the board, and play their whole hand into lines face-up and face-down with correct highlights and totals, in both wide and tall layouts. Cards are readable via zoom at tablet window sizes.
@@ -371,7 +371,7 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 - [x] Rearrange and Swap: the rearrange flow only lets you move the side the text names; swap mode starts each swap from the original order, so the answer is always one swap; "Don't rearrange" only shows when it's optional
 - [x] Order: a button per effect, numbered as you tap ("1: left line"); cards that line up with the options can be tapped instead; the last one fills itself in; Start over and Confirm
 - [x] Reveal: revealed face-down cards turn face-up with a REVEALED badge for as long as the text runs, and at least 2 seconds, with a toast saying what was revealed. A revealed hand (or hand card) of the opponent opens in a panel like the trash browser; your own reveals are a toast
-- [x] Animation with the existing `CardView` glide and flip: flips flip, shifts glide, deletes fly to the trash, returns glide off toward their owner's hand, given and taken cards leave your hand upward and arrive from above (richer animation is Phase 7)
+- [x] Animation with the existing `CardView` glide and flip: flips flip, shifts glide, deletes fly to the trash, returns glide off toward their owner's hand, given and taken cards leave your hand upward and arrive from above (richer animation is Phase 8)
 - [x] Undo during effects: Undo is in every prompt and takes back effect choices; cards glide back, and a card that comes back out of a trash starts from it. When a barrier blocks undo, the reason shows in the prompt and on the summary strip (tall screens) as well as under the buttons (wide)
 - [x] Tests: each card choice reports its `Verb` (including Clear Cache), and every debug effect has a group and a unique key
 
@@ -391,7 +391,7 @@ The effect framework, choice kinds, and their UI are built in Phase 4. This phas
 - [x] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change; `Op.Picked`, the card a flip chose even if it wasn't flipped (Light 0); an optional give (Love 1)
 - [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
 - [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
-- The same note when a line is picked for a player because only one line qualifies moved to Phase 7
+- The same note when a line is picked for a player because only one line qualifies moved to Phase 8
 
 ### Game log for bug reports
 
@@ -404,7 +404,7 @@ While playing, the player can save a log of the game and share it, so we can tel
 - [x] If the engine throws, `MatchController` catches it, stops the game (bots too), and the board offers **Save game log**, **Copy game log**, and **Leave game**. The log keeps the failed move (marked in the Moves) and the exception
 - [x] **Replaying a log in tests**: `GameRecord.Load(text)` then `Replay(catalog, effects, moves)` rebuilds the game after any number of moves; a move that's refused on replay throws, saying which. `GameRecordTests` saves and replays 20 recorded random games and checks the transcript comes out identical, replays to partway points, and checks loading errors, hidden cards, refused moves, and an engine failure. Shared logs go in `Tests/EditMode/Engine/Logs/`
 - [x] README: how to save a log and share it
-- The WebGL hand check (save a log in the browser, replay it in a test) moved to Phase 7
+- The WebGL hand check (save a log in the browser, replay it in a test) moved to Phase 8
 
 **Done when:** a log saved from a WebGL game in the browser replays in a test to the same board, and its transcript reads clearly enough to follow the game without the board.
 
@@ -424,7 +424,7 @@ In brief: tags with the setup (`[P1 "Tyler"] [First "P2"] [Seed "..."] [Pool "..
 - [x] **Replay** on the board (`ReplayController`, `BoardScreen` in replay mode): Back / Next (or the arrow keys), previous / next turn, Switch side, and each move's notation under the step count. The draft is skipped. Moves can't be made, but cards can be hovered and zoomed. Next plays the move so it animates; going back rebuilds the game to that move
 - [x] **Play from here**: a hot-seat game from the move shown, with its own game log (header `mode: hot-seat, carried on from a loaded game after move N`)
 - [x] Tests (`ReplayControllerTests`): the replay starts after the draft; forward then back gives the same game; turn steps land on turn starts; each move has its notation; a game taken over carries on and its log replays; the notation section of a log loads
-- The hand check of the replay screen moved to Phase 7
+- The hand check of the replay screen moved to Phase 8
 
 ### Cards, in waves
 
@@ -542,7 +542,27 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 
 ---
 
-## Phase 7 — Polish and Tablets
+## Phase 7 — Release
+
+**Goal:** a hosted, shareable build.
+
+### Tasks
+
+- [x] Pick a host: **GitHub Pages** (https://mcraigtyler.github.io/ReCompile/). Pages can't send `Content-Encoding`, so the build uses Unity's decompression fallback (the loader unpacks the files), with Gzip, which unpacks faster than Brotli. Files are named by hash, so a new build is never mixed with a cached old one. Well within Pages' limits (100 MB a file, 1 GB a site; the build is about 21 MB). HTTPS, as Relay's WebSockets need
+- [x] Publish script (`tools/publish-pages.ps1`): each release goes in its own folder of the `gh-pages` branch (`release/v0.0.1/`, kept for good), the front page opens the latest, and the source commit is tagged (`v0.0.1`). Releases come from `main` only, matching GitHub's, so every tag is on `main`. The number is the project's version (now `0.0.1`), and a build of another version is refused, as is republishing a version (unless `-Force`); `-NoPush` to look first. Works in a separate worktree, so your checkout isn't touched. README: how to publish
+- [ ] Once, in the repo's **Settings → Pages**: deploy from the `gh-pages` branch, root folder
+- [ ] First published build tried from two browsers on different networks
+- [ ] Production build: stripping level, no development flags, size check (target under 25 MB compressed)
+- [ ] Load-time check on a typical connection
+- [ ] UGS usage check against free-tier limits
+- [ ] About/credits screen crediting Compile (Greater Than Games, Michael Yang) and the card database
+- [ ] Release notes
+
+**Done when:** a friend can open the link, host or join, and play a full game without help.
+
+---
+
+## Phase 8 — Polish and Tablets
 
 **Goal:** the game feels finished and is verified on large tablets. (The wide and tall layouts already exist from Phases 1–2; this phase is about feel and device testing.)
 
@@ -564,23 +584,6 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 
 ---
 
-## Phase 8 — Release
-
-**Goal:** a hosted, shareable build.
-
-### Tasks
-
-- [ ] Pick a host (itch.io, Unity Play, Cloudflare Pages, or GitHub Pages) and confirm Brotli headers or the decompression fallback
-- [ ] Production build: stripping level, no development flags, size check (target under 25 MB compressed)
-- [ ] Load-time check on a typical connection
-- [ ] UGS usage check against free-tier limits
-- [ ] About/credits screen crediting Compile (Greater Than Games, Michael Yang) and the card database
-- [ ] Release notes
-
-**Done when:** a friend can open the link, host or join, and play a full game without help.
-
----
-
 ## Decisions to Make
 
 | Decision | Needed by | Options |
@@ -590,7 +593,7 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 | Visual style for menus | Phase 1 | Match the board art's neon/glitch look, or a plainer style |
 | First player choice | Phase 1 (UI), Phase 6 (logic) | Random coin flip vs. host chooses |
 | ~~Stalled games~~ | Phase 3 | Decided: two turns in a row where neither player can act ends the game; more compiled Protocols wins, otherwise a draw ([house rulings](official/rules.md#house-rulings)) |
-| Turn timer | Phase 7 | None vs. optional chess clock |
+| Turn timer | Phase 8 | None vs. optional chess clock |
 | Spectators | Phase 6 | Keep the redacted-view design open for a third view, or not |
 | Dedicated server | After release | When public play makes host-side hidden info unacceptable |
 | AX01 rules | Phase 5 (Wave D) | Confirm whether a rulesheet exists |
@@ -602,7 +605,7 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 | Card interactions are more complex than the effect model allows | Rework in Phases 4–5 | Design the effect framework and choice kinds in Phase 4 against the hardest cards (Metal 6, Speed 2, Light 0, Spirit 1); fuzz constantly |
 | Stub view models drift from what the engine produces | UI rework in Phase 4 | Define view-model types once, in a shared place, in Phase 2; the engine's redaction produces those same types |
 | Rules ambiguity not covered by the Codex | Wrong behavior, arguments | Record each ruling in tests and a "House rulings" section in `rules.md` |
-| WebGL memory or size limits on iPad | Crashes on tablets | Build every phase; keep art in atlases; check memory in Phase 7, not at release |
+| WebGL memory or size limits on iPad | Crashes on tablets | Build every phase; keep art in atlases; check memory in Phase 8 (polish and tablets) |
 | Relay/WebSocket issues in some browsers or networks | Can't connect | Test across networks in Phase 6; clear error messages |
 | Host can read hidden information | Cheating between friends | Stated in-game; engine stays server-portable |
 | Community card data has errors | Wrong card text | Compare against card images during Phase 5; send fixes upstream |
