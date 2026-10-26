@@ -2,7 +2,7 @@
 
 A browser version of **Compile**, the two-player card game by Michael Yang (Greater Than Games). Two players meet with a room code, draft Protocols, and race to compile all three. Built with Unity 6 for WebGL, playable on desktop browsers and large tablets.
 
-> **Status: Phase 5 (card effects), Waves A–D done: every card works.** Two people can play a full game of Compile at one screen, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. Every kind of card effect can also be set off from **Debug → Card effects…**. Online play comes in Phase 6. See [`docs/plan.md`](docs/plan.md).
+> **Status: Phase 5 (card effects) complete: every card works. Next is Phase 6, online play.** Two people can play a full game of Compile at one screen, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. Every kind of card effect can also be set off from **Debug → Card effects…**. See [`docs/plan.md`](docs/plan.md).
 
 ## Requirements
 

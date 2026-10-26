@@ -72,7 +72,7 @@ These apply to every phase.
 - [x] **Card data import.** `Assets/Compile/Data/cards.json` and `protocols.json` (15 Protocols, 90 cards), loaded with `CardDatabase.Parse`. Decision: runtime JSON.
 - [x] **Tests.** 6 EditMode tests for the card data (counts, art for every card, printed values, Codex errata).
 - [x] **Remove bootstrap scripts** from `Assets/Editor/ProjectBootstrap/`.
-- [x] **Link Unity Cloud.** Linked to the new Unity Cloud project "UnityClaude" (`40659849-96d8-4901-8366-44626af0f5f7`) in the GeekCastle organization. (The project was later renamed ReCompile, along with its folder and the build name; the cloud project keeps its ID if it's renamed too.)
+- [x] **Link Unity Cloud.** Linked to the new Unity Cloud project "UnityClaude" (`40659849-96d8-4901-8366-44626af0f5f7`) in the GeekCastle organization. (Later renamed ReCompile, along with the folder and the build name; the cloud project kept its ID.)
 - [x] **Test run from the command line.** `unity test . --mode EditMode` passes (6/6) with the Editor closed.
 
 **Done when:** art shows up as sprites in the Editor, card data loads in a test, and the Unity Cloud project ID is set. ✅ Complete (2026-10-11).
@@ -388,10 +388,10 @@ Surveyed from `cards.json` (counts are cards whose text uses the word).
 The effect framework, choice kinds, and their UI are built in Phase 4. This phase adds:
 
 - [x] Card effect classes registered for every Main Set 1 card, with a test that none is missing. The classes are in `Engine.Cards/MainSet1/` (one file per Protocol), registered in `MainSet1.Effects`, which new games use. `MainSet1Tests` checks every MN01 card with text has its effect; `MainSet1.NotYetWritten` is now empty. (The expansion's cards come in Wave D.)
-- [ ] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change; `Op.Picked`, the card a flip chose even if it wasn't flipped (Light 0)
+- [x] Card-specific rule modifiers as the cards need them (e.g. Spirit 1 playing face-up without a matching Protocol, Metal 1 stopping compiles). So far: optional discards ("You may discard 1 card", Fire 3); a turn remembered on a card (`Effect.MarkTurn`/`NextTurnOf`, `CardInstance.MarkedTurn`), so Metal 1 can stop compiling on the opponent's next turn; playing the top of a deck under a card (`PlayTopOfDeckUnder`, Gravity 0); shifting a card to or from a line (`ShiftToOrFrom`, Gravity 1); `Effect.AnyCards`, so "all cards in 1 line" text only offers lines it can change; `Op.Picked`, the card a flip chose even if it wasn't flipped (Light 0); an optional give (Love 1)
 - [x] The fuzzer has a third mode with the real card text: `Fuzz_200RandomGamesWithMainSet1` in every run, and `Fuzz_10000RandomGamesWithMainSet1` (explicit) for the done-when check
 - [x] The board explains what it does on its own: a toast and a log line when text runs because a card was uncovered, flipped face-up, or set off (Start, End, reactions), and when a pick is made for a player because there was no choice (`CardTextRuns`, `ChoiceMadeFor`)
-- [ ] The same note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like)
+- The same note when a line is picked for a player because only one line qualifies moved to Phase 7
 
 ### Game log for bug reports
 
@@ -404,7 +404,7 @@ While playing, the player can save a log of the game and share it, so we can tel
 - [x] If the engine throws, `MatchController` catches it, stops the game (bots too), and the board offers **Save game log**, **Copy game log**, and **Leave game**. The log keeps the failed move (marked in the Moves) and the exception
 - [x] **Replaying a log in tests**: `GameRecord.Load(text)` then `Replay(catalog, effects, moves)` rebuilds the game after any number of moves; a move that's refused on replay throws, saying which. `GameRecordTests` saves and replays 20 recorded random games and checks the transcript comes out identical, replays to partway points, and checks loading errors, hidden cards, refused moves, and an engine failure. Shared logs go in `Tests/EditMode/Engine/Logs/`
 - [x] README: how to save a log and share it
-- [ ] Hand check: save a log from a WebGL game in the browser and replay it in a test
+- The WebGL hand check (save a log in the browser, replay it in a test) moved to Phase 7
 
 **Done when:** a log saved from a WebGL game in the browser replays in a test to the same board, and its transcript reads clearly enough to follow the game without the board.
 
@@ -424,7 +424,7 @@ In brief: tags with the setup (`[P1 "Tyler"] [First "P2"] [Seed "..."] [Pool "..
 - [x] **Replay** on the board (`ReplayController`, `BoardScreen` in replay mode): Back / Next (or the arrow keys), previous / next turn, Switch side, and each move's notation under the step count. The draft is skipped. Moves can't be made, but cards can be hovered and zoomed. Next plays the move so it animates; going back rebuilds the game to that move
 - [x] **Play from here**: a hot-seat game from the move shown, with its own game log (header `mode: hot-seat, carried on from a loaded game after move N`)
 - [x] Tests (`ReplayControllerTests`): the replay starts after the draft; forward then back gives the same game; turn steps land on turn starts; each move has its notation; a game taken over carries on and its log replays; the notation section of a log loads
-- [ ] Hand check in the Editor and in a WebGL build: load a game, step through it, switch sides, and play on from a move
+- The hand check of the replay screen moved to Phase 7
 
 ### Cards, in waves
 
@@ -475,17 +475,17 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
   Tasks:
   - [x] Confirm there's no separate AX01 rulesheet that changes core rules: the expansion adds "no new rules" (its retail description), and the Codex's only AX01 entry is Hate 2
   - [x] Implement the 18 cards with tests, in `Engine.Cards/Expansion1/` and registered with the Main Set 1 effects (`Expansion1.AddTo`), so `MainSet1.Effects` is the text new games use; it keeps the name "MainSet1" in logs and notation. The missing-effect test covers all 90 cards. Games recorded before Wave D that played these cards won't replay, since the cards now have text (the notation spec's example was updated: its Apathy 5 debug discard is now Apathy 5's own text)
-  - [ ] They're already in the draft pool (they're in `cards.json`); check the draft and the board show them like the others (hand check)
+  - [x] They're already in the draft pool (they're in `cards.json`); check the draft and the board show them like the others (hand check)
   - [x] Fuzzer run with all 15 Protocols having text: `Fuzz_10000RandomGamesWithMainSet1` passes (10,000 games, 78.8 turns on average)
 
 ### Definition of done (per card)
 
-- [ ] Effect class implements the text in `cards.json`
-- [ ] At least one scenario test per command (top, middle, bottom)
-- [ ] Tests for any Codex clarification on that card (Death 1, Fire 0, Life 0, Light 0, Light 3, Metal 1, Metal 6, Plague 3, Speed 2, Spirit 0, Spirit 1, Water 1)
-- [ ] Choice prompts have plain-language text ("Choose 1 card to flip")
+- [x] Effect class implements the text in `cards.json`
+- [x] At least one scenario test per command (top, middle, bottom)
+- [x] Tests for any Codex clarification on that card (Death 1, Fire 0, Life 0, Light 0, Light 3, Metal 1, Metal 6, Plague 3, Speed 2, Spirit 0, Spirit 1, Water 1)
+- [x] Choice prompts have plain-language text ("Choose 1 card to flip")
 
-**Done when:** all 90 cards (15 Protocols) pass their tests, the fuzzer runs 10,000 games with real cards for all 15 Protocols and no invariant failures, and a hot-seat game with each Protocol has been played.
+**Done when:** all 90 cards (15 Protocols) pass their tests, the fuzzer runs 10,000 games with real cards for all 15 Protocols and no invariant failures, and a hot-seat game with each Protocol has been played. ✅ Complete (2026-10-25).
 
 ---
 
@@ -541,6 +541,9 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
 - [ ] ASTC + DXT texture variants for tablet GPUs
 - [ ] Memory check on iPad Safari (target under 512 MB)
 - [ ] Optional: say when a rule stops something that would otherwise happen, for example a compile Metal 1 blocks. Today the log and the notation only show what did happen, so "why didn't they compile?" has to be worked out from the line totals. This would add an event, a log line and toast ("Metal 1: Player1 can't compile this turn"), and a notation mark such as `#!Sp(Me1)`. The same could cover other blocked actions (Plague 0, Metal 2, Metal 6's lost flip)
+- [ ] A toast and log note when a line is picked for a player because only one line qualifies (Death 2, Metal 3, and the like), as there already is for cards picked that way (`ChoiceMadeFor`) (from Phase 5)
+- [ ] Hand check: save a game log from a WebGL game in the browser and replay it in a test (from Phase 5's game log)
+- [ ] Hand check in the Editor and in a WebGL build: load a game, step through it, switch sides, and play on from a move (from Phase 5's replay screen)
 
 **Done when:** a full online game is played on an iPad (Safari) and an Android tablet (Chrome), in both orientations, including a mid-game rotation.
 
