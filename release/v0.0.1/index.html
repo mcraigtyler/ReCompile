@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>ReCompile</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #120d1c; }
+    body { position: fixed; inset: 0; overscroll-behavior: none; }
+    #unity-canvas {
+      display: block; width: 100vw; height: 100vh; height: 100dvh; background: #120d1c;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; outline: none;
+    }
+    .overlay {
+      position: fixed; inset: 0; display: grid; place-items: center; align-content: center; gap: 12px;
+      padding: 24px; background: #120d1c; color: #ece6f7; font: 15px/1.5 system-ui, sans-serif; text-align: center;
+    }
+    #bar { width: min(320px, 70vw); height: 4px; background: #2a2140; border-radius: 2px; overflow: hidden; }
+    #fill { width: 0; height: 100%; background: #e58bff; transition: width .2s; }
+    #message { max-width: 40ch; }
+    #too-small { display: none; z-index: 10; }
+    /* Phones and small tablets (short side under 768 CSS px) aren't supported. */
+    @media (max-width: 767px), (max-height: 767px) {
+      #too-small { display: grid; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading" class="overlay">
+    <div id="bar"><div id="fill"></div></div>
+    <div id="message">Loading ReCompile&hellip;</div>
+  </div>
+  <div id="too-small" class="overlay">
+    <div id="message-small">This screen is too small for ReCompile. Play on a desktop browser or a large tablet.</div>
+  </div>
+  <script>
+    const canvas = document.querySelector("#unity-canvas");
+    const loading = document.querySelector("#loading");
+    const fill = document.querySelector("#fill");
+    const message = document.querySelector("#message");
+
+    const config = {
+      arguments: [],
+      dataUrl: "Build/5f4d195ea5706e884fb10abec10baa3a.data.unityweb",
+      frameworkUrl: "Build/6941f1a95781fb376902158e2967223f.framework.js.unityweb",
+      codeUrl: "Build/d5c6b63d558825a5ed090970cab65d06.wasm.unityweb",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "DefaultCompany",
+      productName: "ReCompile",
+      productVersion: "0.0.1",
+      // Cap the pixel ratio so high-density tablets don't render at full native resolution.
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    };
+
+    // Stop the page from scrolling, bouncing, or opening context menus under touch.
+    document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+    canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+    const script = document.createElement("script");
+    script.src = "Build/390b7c3902e7569b45f9e1ef13484ca9.loader.js";
+    script.onload = () => {
+      createUnityInstance(canvas, config, p => { fill.style.width = (100 * p) + "%"; })
+        .then(() => loading.remove())
+        .catch(err => { message.textContent = "The game couldn't start: " + err; });
+    };
+    script.onerror = () => {
+      message.textContent = "The game files couldn't be loaded. Check your connection and reload the page.";
+    };
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>
