@@ -463,16 +463,20 @@ Ordered so each wave mostly reuses primitives from the waves before it. Keyword 
   - Darkness 2: only face-down cards in its own stack are worth 4, and (top text) also while it's covered; its middle text can flip a covered card on either side of the line
   - Psychic 1: covers plays made by card text as well, and works while covered (top text)
   - Psychic 3: Psychic 3's owner picks which of the opponent's cards is shifted, and where
-- [ ] **Wave D: Apathy, Hate, Love** (expansion AX01, 18 cards; moved here from its own phase so every card works by the end of Phase 5). A first look at their text shows they mostly reuse existing mechanics:
-  - Apathy: a line value modifier; "ignore all middle commands in this line" (the `IgnoresMiddle` rule query)
-  - Hate: highest/lowest value targeting; the "After you delete cards" trigger
-  - Love: giving and taking cards between hands (ownership change, already in the rules); the opponent drawing; taking a random card from the opponent's hand
+- [x] **Wave D: Apathy, Hate, Love** (expansion AX01, 18 cards; moved here from its own phase so every card works by the end of Phase 5), with tests in `Tests/EditMode/Engine/Cards/` (`MainSet.LoadD`: Apathy/Hate/Love against Water/Death/Fire). They reused existing mechanics: a line value modifier and `IgnoresMiddle` (Apathy), value-based targets and the "After you delete cards" trigger (Hate), and giving, taking, and drawing from the opponent's deck (Love). The only engine change is an optional give (Love 1). Rulings made here:
+  - Hate 2 (Codex): if it's your highest card it deletes itself, and the second sentence doesn't happen; ties for highest (and Hate 4's lowest) are picked by Hate 2's (or Hate 4's) owner, even between both players' cards
+  - Apathy 0: both players' face-down cards in the line count, and only its owner's total goes up
+  - Apathy 1 and 2: both players' cards in the line; Apathy 1 flips covered ones too, and Apathy 2 works while covered
+  - Hate 1: with fewer than 3 cards you discard what you have, and both deletes happen anyway
+  - Hate 3: deletes by its owner's card text, of either player's cards, not compiles; works while covered
+  - Love 1: the card drawn from the opponent's deck is its drawer's from then on
+  - Love 3: with nothing to take you still give
 
   Tasks:
-  - [ ] Confirm there's no separate AX01 rulesheet that changes core rules (open question in design.md)
-  - [ ] Implement the 18 cards with tests, following the definition of done below, in their own folder (`Engine.Cards/Expansion1/`) and registered with the Main Set 1 effects in the card text new games use. The missing-effect test covers AX01 too
-  - [ ] They're already in the draft pool (they're in `cards.json`); check the draft and the board show them like the others
-  - [ ] Fuzzer run with all 15 Protocols having text
+  - [x] Confirm there's no separate AX01 rulesheet that changes core rules: the expansion adds "no new rules" (its retail description), and the Codex's only AX01 entry is Hate 2
+  - [x] Implement the 18 cards with tests, in `Engine.Cards/Expansion1/` and registered with the Main Set 1 effects (`Expansion1.AddTo`), so `MainSet1.Effects` is the text new games use; it keeps the name "MainSet1" in logs and notation. The missing-effect test covers all 90 cards. Games recorded before Wave D that played these cards won't replay, since the cards now have text (the notation spec's example was updated: its Apathy 5 debug discard is now Apathy 5's own text)
+  - [ ] They're already in the draft pool (they're in `cards.json`); check the draft and the board show them like the others (hand check)
+  - [x] Fuzzer run with all 15 Protocols having text: `Fuzz_10000RandomGamesWithMainSet1` passes (10,000 games, 78.8 turns on average)
 
 ### Definition of done (per card)
 

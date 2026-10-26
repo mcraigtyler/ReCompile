@@ -5,10 +5,11 @@ using System.Linq;
 namespace Compile.Engine.Cards
 {
     // The text of the Main Set 1 cards (cards.json, with the Codex errata), by card id, written in Waves
-    // A to C of Phase 5.
+    // A to C of Phase 5, and with them the expansion's (Expansion1, Wave D): the card text new games use.
+    // It keeps the name "MainSet1" in game logs and notation.
     public static class MainSet1
     {
-        public static CardEffects Effects { get; } = new CardEffects("MainSet1")
+        public static CardEffects Effects { get; } = Expansion1.AddTo(new CardEffects("MainSet1")
             // Wave A
             .Add("Death_0", new Death0()).Add("Death_1", new Death1()).Add("Death_2", new Death2())
             .Add("Death_3", new Death3()).Add("Death_4", new Death4()).Add("Death_5", new YouDiscardOne())
@@ -35,9 +36,9 @@ namespace Compile.Engine.Cards
             .Add("Light_0", new Light0()).Add("Light_1", new Light1()).Add("Light_2", new Light2())
             .Add("Light_3", new Light3()).Add("Light_4", new Light4()).Add("Light_5", new YouDiscardOne())
             .Add("Psychic_0", new Psychic0()).Add("Psychic_1", new Psychic1()).Add("Psychic_2", new Psychic2())
-            .Add("Psychic_3", new Psychic3()).Add("Psychic_4", new Psychic4()).Add("Psychic_5", new YouDiscardOne());
+            .Add("Psychic_3", new Psychic3()).Add("Psychic_4", new Psychic4()).Add("Psychic_5", new YouDiscardOne()));
 
-        // Protocols whose cards don't have their text yet: none, every Main Set 1 card is written.
+        // Protocols whose cards don't have their text yet: none, every card is written.
         public static IReadOnlyList<string> NotYetWritten { get; } = new string[0];
     }
 

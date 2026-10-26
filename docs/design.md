@@ -436,7 +436,7 @@ Task-level detail for each milestone is in [`plan.md`](plan.md).
 ## 11. Open Questions
 
 1. ~~**Card text source.**~~ Resolved: [`cards.json`](cards.json) from chuckplayer/compile (see [Card data](#card-data)).
-2. **Expansion rules.** Apathy, Hate, and Love (set AX01) may introduce terms or rules not in `rules.md` (Love's focus lists "Gift" and "Exchange"). Do we have their rulesheets?
+2. ~~**Expansion rules.**~~ Resolved: the Aux 1 expansion (AX01) adds three Protocols and "no new rules" (its retail description); giving and taking cards were already in `rules.md`. The Codex's only AX01 entry is Hate 2's errata and clarification.
 3. **Control card sides.** What do `Control/A` and `Control/B` mean (neutral vs. held, or just two faces)?
 4. **First player.** Random coin flip, or let players choose?
 5. **Turn timer.** None at first. Add an optional chess-clock style timer later?

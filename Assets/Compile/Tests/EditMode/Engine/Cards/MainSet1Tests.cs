@@ -36,6 +36,15 @@ namespace Compile.Engine.Tests
 
         public static Game LoadC(string text, bool confirmEndTurn = false) =>
             Scenario.Load(ProtocolsC + text, confirmEndTurn, MainSet1.Effects);
+
+        // Wave D (the expansion): field line 0 is Ann's Apathy facing Bob's Fire, line 1 Hate/Death, line 2 Love/Water.
+        // Bob's own lines: 0 is field line 2 (Water), 1 is field line 1 (Death), 2 is field line 0 (Fire).
+        const string ProtocolsD = @"
+            p0 Ann: Apathy Hate Love
+            p1 Bob: Water Death Fire";
+
+        public static Game LoadD(string text, bool confirmEndTurn = false) =>
+            Scenario.Load(ProtocolsD + text, confirmEndTurn, MainSet1.Effects);
     }
 
     public class MainSet1Tests
@@ -44,9 +53,9 @@ namespace Compile.Engine.Tests
         public void EveryCardWithTextHasItsEffect_ExceptProtocolsStillToCome()
         {
             var db = CardDatabase.Parse(File.ReadAllText("Assets/Compile/Data/cards.json"), File.ReadAllText("Assets/Compile/Data/protocols.json"));
-            var cards = db.Cards.Where(c => c.Set == "MN01").ToList();
-            Assert.That(cards.Select(c => c.Protocol).Distinct().Count(), Is.EqualTo(12));
-            Assert.That(cards, Has.Count.EqualTo(72));
+            var cards = db.Cards.Where(c => c.Set == "MN01" || c.Set == "AX01").ToList();
+            Assert.That(cards.Select(c => c.Protocol).Distinct().Count(), Is.EqualTo(15));
+            Assert.That(cards, Has.Count.EqualTo(90));
 
             foreach (var card in cards)
             {

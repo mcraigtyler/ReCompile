@@ -728,10 +728,11 @@ namespace Compile.Engine
         // ---------- Building blocks: hands ----------
 
         // Chosen cards from the player's hand to their opponent's; the opponent owns them from now on.
-        internal void GiveOp(Effect e, Op op, int seat, int count)
+        internal void GiveOp(Effect e, Op op, int seat, int count, bool optional)
         {
             var hand = State.Players[seat].HandCards;
-            PickCards(e, seat, ChoiceKind.HandCards, "Give", $"Give {Plural(count, "card")} to your opponent", hand.ToList(), count, count, optional: false, cards =>
+            var prompt = $"{(optional ? "You may give" : "Give")} {Plural(count, "card")} to your opponent";
+            PickCards(e, seat, ChoiceKind.HandCards, "Give", prompt, hand.ToList(), count, count, optional, cards =>
             {
                 var to = GameState.Other(seat);
                 var refs = cards.Select(c => new CardRef(c)).ToList();

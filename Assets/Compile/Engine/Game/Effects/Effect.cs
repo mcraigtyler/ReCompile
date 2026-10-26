@@ -295,7 +295,7 @@ namespace Compile.Engine
 
         // ---- Hands ----
 
-        public Op Give(int count = 1, int? seat = null) => new Op(op => Game.GiveOp(this, op, Seat(seat), count));
+        public Op Give(int count = 1, int? seat = null, bool optional = false) => new Op(op => Game.GiveOp(this, op, Seat(seat), count, optional));
 
         public Op TakeRandom(int count = 1, int? seat = null) => new Op(op => Game.TakeRandomOp(op, Seat(seat), count));
 

@@ -15,7 +15,7 @@ A real hot-seat game, up to the start of turn 4's second half:
 [Lines "a Fi/Ap, b Pl/Me, c Dk/De"]
 [Result "*"]
 De Fi Pl Me Ap Dk +(Pl5,Fi5,Dk4,Pl2,Pl0) +(Me3,Me0,De3,Ap5,De4)
-1. Ap5a dbg:discard-1(-De3) | Pl2b(-(Pl5,Fi5) -(Me3,Me0,De4))
+1. Ap5a(-De3) | Pl2b(-(Pl5,Fi5) -(Me3,Me0,De4))
 2. R* +(De5,Me6,Ap1,De1,Ap3) | Pl0b(-Ap3)
 3. De1c | R +(Fi2,Fi0,Fi1,Dk5)
 4. S:De1(ok +Ap0 xPl0 !Pl2(-(Dk4,Dk5) -(Me6,Ap1,Ap0)) xDe1) De5c() |
@@ -25,7 +25,7 @@ Reading it:
 
 - **The draft:** Player 2 drafts Death, Tyler drafts Fire and Plague, Player 2 drafts Metal and Apathy, and Tyler drafts Darkness. Then both players draw their opening hands.
 - **1.**
-  - Player 2 (who goes first) plays Apathy 5 face-up into line a, and uses the debug effect "discard 1 card" to discard Death 3.
+  - Player 2 (who goes first) plays Apathy 5 face-up into line a, and its text ("You discard 1 card") discards Death 3. (When this game was played Apathy had no text yet, so the player used the debug effect "discard 1 card", `dbg:discard-1(-De3)`, to the same end.)
   - Tyler plays Plague 2 into line b. Its text has Tyler discard Plague 5 and Fire 5, then Player 2 discards their last three cards.
 - **2.** Player 2 has no cards, so they must refresh and draw five. Tyler plays Plague 0, and Player 2 discards Apathy 3.
 - **3.** Player 2 plays Death 1 into line c. Tyler refreshes.

@@ -310,6 +310,15 @@ How this game reads card text the Codex doesn't spell out. Each one has a test i
 | Light 2 | After the reveal, its owner may shift the card (still face-down), flip it where it is, or leave it |
 | Psychic 1 | Also covers plays made by card text, and works while covered |
 | Psychic 3 | Psychic 3's owner picks which of the opponent's cards is shifted, and where |
+| Apathy 0 | Both players' face-down cards in the line count, and only its owner's total goes up; it works while covered |
+| Apathy 1 | Flips both players' face-up cards in the line, covered ones too |
+| Apathy 2 | Ignores both players' middle commands in its line, and does so while covered |
+| Hate 1 | With fewer than 3 cards you discard what you have, and both deletes happen anyway |
+| Hate 2, Hate 4 | When cards tie for highest (or lowest), Hate 2's or Hate 4's owner picks which is deleted, even when one of the tied cards is the opponent's |
+| Hate 3 | Counts deletes by its owner's card text, of either player's cards, not compiles; it works while covered |
+| Hate 4 | "Covered card in this line" means either player's |
+| Love 1 | The card drawn from the opponent's deck is its drawer's from then on, like a given or taken card |
+| Love 3 | With nothing to take you still give |
 
 ---
 
