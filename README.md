@@ -2,7 +2,7 @@
 
 A browser version of **Compile**, the two-player card game by Michael Yang (Greater Than Games). Two players meet with a room code, draft Protocols, and race to compile all three. Built with Unity 6 for WebGL, playable on desktop browsers and large tablets.
 
-> **Status: Phase 6 (online play) in progress: written and tested without a network, not yet tried between two browsers.** Two people can play a full game of Compile at one screen or (soon) online, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. Every kind of card effect can also be set off from **Debug → Card effects…**. See [`docs/plan.md`](docs/plan.md).
+> **Status: released, play it at https://mcraigtyler.github.io/ReCompile/ (see the [release notes](docs/release-notes.md)).** Two people can play a full game of Compile online with a room code or at one screen, or one person can play against a random stand-in opponent. All 15 Protocols do what their cards say: the 12 of Main Set 1 and the expansion's Apathy, Hate, and Love. In development builds, every kind of card effect can also be set off from **Game → Debug → Card effects…**. See [`docs/plan.md`](docs/plan.md).
 
 ## Requirements
 
@@ -27,8 +27,8 @@ The scene contains only an `App` object. Everything else (the desk, play mat, ca
 | A game against the stand-in opponent | **Play the computer** → draft → play. The opponent makes random legal moves |
 | An online game | One player: **Host game**, then share the room code. The other: **Join game** with that code. Both press **I'm ready**, and the host presses **Start**. The host's browser runs the game. In the Editor, **Window → Multiplayer → Multiplayer Play Mode** can run a second player, and the Editor can play a browser. Needs Relay and Lobby turned on for the project in the Unity Cloud dashboard |
 | Undo | Make a move, then **Undo** (or Ctrl+Z). You can undo every move in your turn until you press **End turn**, except after drawing cards. In the draft, undo a pick until you press **Confirm** |
-| Skipping ahead | **Debug → Auto-play your turn** makes random moves for you; **Concede** ends the game |
-| Reporting a problem | **Debug → Save game log** (or **Save game log** when the game ends) saves the whole game as a `.txt` file: a download in the browser, `Logs/Games/` in the Editor. **Debug → Copy game log** copies it instead, for pasting into a message. Share the whole file: it replays the game exactly and has a move-by-move transcript. **Copy game notation** gives just the short form, like chess notation ([`docs/notation.md`](docs/notation.md)) |
+| Skipping ahead | **Game → Auto-play your turn** (development builds) makes random moves for you; **Game → Concede** ends the game |
+| Reporting a problem | **Game → Save game log** (or **Save game log** when the game ends) saves the whole game as a `.txt` file: a download in the browser, `Logs/Games/` in the Editor. **Game → Copy game log** copies it instead, for pasting into a message. Share the whole file: it replays the game exactly and has a move-by-move transcript. **Copy game notation** gives just the short form, like chess notation ([`docs/notation.md`](docs/notation.md)) |
 | Watching a saved game | **Load game** on the title screen, then paste a game's notation or a saved game log (in the browser you can also pick the `.txt` file). Step through it with **Next** / **Back** or the arrow keys, by turn with **Turn >>** / **<< Turn**, and press **Play from here** to carry on as a hot-seat game from that move |
 | An opponent disconnecting | Close the guest's tab or stop its player: the host's board counts down 2 minutes, then wins by forfeit. A guest who lost the connection gets **Rejoin** (or reloads and joins with the same code) |
 | Wide and tall layouts | Resize the Game view or use a portrait resolution; the camera re-fits each screen |
@@ -72,7 +72,7 @@ Releases are numbered by the project's version (**Player Settings → Version**,
 To publish one:
 
 1. Raise the version in Player Settings (`0.0.1` → `0.0.2`), commit, and merge to `main`. Releases come from `main`: check it out and pull.
-2. Build to `Builds/WebGL` as above. For a build to share, turn off **Development Build** in the WebGL build profile (that also hides the Debug menu).
+2. Build to `Builds/WebGL` as above. For a build to share, turn off **Development Build** in the WebGL build profile (that also hides the debug entries in the Game menu).
 3. Publish it:
 
    ```powershell

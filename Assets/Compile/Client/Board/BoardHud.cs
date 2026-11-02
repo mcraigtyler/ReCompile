@@ -12,7 +12,7 @@ using UnityEngine.Events;
 namespace Compile.Client.Board
 {
     // Screen-space parts of the board: phase bar, player summaries, hand, actions, event log, prompts,
-    // debug menu, and trash browser. Lays itself out for wide or tall screens and re-lays on rotation.
+    // Game menu, and trash browser. Lays itself out for wide or tall screens and re-lays on rotation.
     public sealed class BoardHud : MonoBehaviour
     {
         static readonly string[] PhaseNames = { "START", "CONTROL", "COMPILE", "ACTION", "CACHE", "END" };
@@ -41,7 +41,7 @@ namespace Compile.Client.Board
         RectTransform _promptButtons;       // the row (tall screens) or column (the narrow wide-screen panel) in use
         RectTransform _promptRow, _promptColumn;
         RectTransform _topRight;
-        RectTransform _debugMenu;
+        RectTransform _gameMenu;
         RectTransform _trashBrowser;
         RectTransform _trashGrid;
         TextMeshProUGUI _trashTitle;
@@ -62,14 +62,14 @@ namespace Compile.Client.Board
 
         public bool Wide => _wide;
 
-        // Watching a replay: no moves to make, so no action buttons or Debug menu.
+        // Watching a replay: no moves to make, so no action buttons or Game menu.
         bool _replay;
-        ButtonSkin _debugButton, _tallDebugButton;
+        ButtonSkin _gameButton, _tallGameButton;
 
         public void SetReplay(bool on)
         {
             _replay = on;
-            foreach (var b in new[] { _debugButton, _tallDebugButton, _tallFaceUp, _tallFaceDown, _tallRefresh, _tallUndo, _tallEndTurn })
+            foreach (var b in new[] { _gameButton, _tallGameButton, _tallFaceUp, _tallFaceDown, _tallRefresh, _tallUndo, _tallEndTurn })
                 b.gameObject.SetActive(!on);
             Layout(_wide);
         }
@@ -143,7 +143,7 @@ namespace Compile.Client.Board
             _topRight.sizeDelta = new Vector2(300f, 0f);
             Ui.VStack(_topRight, 12f);
             Fit(_topRight);
-            _debugButton = Ui.Button(_topRight, "Debug", ButtonStyle.Secondary, ToggleDebugMenu);
+            _gameButton = Ui.Button(_topRight, "Game", ButtonStyle.Secondary, ToggleGameMenu);
             _logToggle = Ui.Button(_topRight, "Hide log", ButtonStyle.Quiet, ToggleLog);
 
             _log = Box("Log", 440f);
@@ -151,8 +151,8 @@ namespace Compile.Client.Board
             _logText.fontSize = 26f;
             _logText.richText = true;
 
-            _debugMenu = Box("DebugMenu", 360f);
-            _debugMenu.gameObject.SetActive(false);
+            _gameMenu = Box("GameMenu", 360f);
+            _gameMenu.gameObject.SetActive(false);
 
             // The current question and its buttons, placed where it doesn't hide the cards being chosen:
             // at the left between the player summaries on wide screens, under the top strip on tall ones.
@@ -186,8 +186,8 @@ namespace Compile.Client.Board
         {
             _tallTop = Strip("TallTop");
             _tallOpponentText = TappableText(_tallTop, () => TrashPressed?.Invoke(false));
-            _tallDebugButton = Ui.Button(_tallTop, "Debug", ButtonStyle.Secondary, ToggleDebugMenu);
-            Ui.Size(_tallDebugButton, width: 170f);
+            _tallGameButton = Ui.Button(_tallTop, "Game", ButtonStyle.Secondary, ToggleGameMenu);
+            Ui.Size(_tallGameButton, width: 170f);
             _tallLogToggle = Ui.Button(_tallTop, "Log", ButtonStyle.Quiet, ToggleLog);
             Ui.Size(_tallLogToggle, width: 130f);
 
@@ -385,19 +385,25 @@ namespace Compile.Client.Board
 
         public void HideHandoff() => _handoff.gameObject.SetActive(false);
 
-        // ---------- Debug menu ----------
+        // ---------- Game menu ----------
 
-        public void AddDebugAction(string label, UnityAction action) =>
-            Ui.Button(_debugMenu, label, ButtonStyle.Quiet, () =>
+        public void AddGameAction(string label, UnityAction action) =>
+            Ui.Button(_gameMenu, label, ButtonStyle.Quiet, () =>
             {
-                _debugMenu.gameObject.SetActive(false);
+                _gameMenu.gameObject.SetActive(false);
                 action();
             }).Label.fontSize = 28f;
 
-        void ToggleDebugMenu()
+        public void AddGameHeading(string label)
         {
-            _debugMenu.gameObject.SetActive(!_debugMenu.gameObject.activeSelf);
-            _debugMenu.SetAsLastSibling();
+            Ui.Spacer(_gameMenu, 8f);
+            Ui.Text(_gameMenu, label, TextStyle.Label).fontSize = 24f;
+        }
+
+        void ToggleGameMenu()
+        {
+            _gameMenu.gameObject.SetActive(!_gameMenu.gameObject.activeSelf);
+            _gameMenu.SetAsLastSibling();
         }
 
         // ---------- Card effects (Debug) ----------
@@ -578,7 +584,7 @@ namespace Compile.Client.Board
                 Place(_opponentBox, new Vector2(0f, 1f), new Vector2(28f, -24f), 420f);
                 Place(_topRight, new Vector2(1f, 1f), new Vector2(-28f, -24f), 300f);
                 Place(_log, new Vector2(1f, 1f), new Vector2(-28f, -260f), 440f);
-                Place(_debugMenu, new Vector2(1f, 1f), new Vector2(-340f, -24f), 360f);
+                Place(_gameMenu, new Vector2(1f, 1f), new Vector2(-340f, -24f), 360f);
                 Place(_localBox, new Vector2(0f, 0f), new Vector2(28f, 28f), 420f);
                 Place(_actions, new Vector2(1f, 0f), new Vector2(-28f, 28f), 340f);
                 Hand.SetWidth(1040f);
@@ -590,7 +596,7 @@ namespace Compile.Client.Board
                 Place(_tallTop, new Vector2(0.5f, 1f), new Vector2(0f, -104f), width - 48f);
                 Place(_tallBottom, new Vector2(0.5f, 0f), new Vector2(0f, 168f), width - 48f);
                 Place(_log, new Vector2(1f, 1f), new Vector2(-24f, -200f), Mathf.Min(620f, width - 48f));
-                Place(_debugMenu, new Vector2(1f, 1f), new Vector2(-24f, -200f), 360f);
+                Place(_gameMenu, new Vector2(1f, 1f), new Vector2(-24f, -200f), 360f);
                 Hand.SetWidth(width - 48f);
                 _logOpen = false;
             }
