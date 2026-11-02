@@ -20,7 +20,7 @@ namespace Compile.Client.Screens
         }
 
         // ScrollRect > Viewport (Mask + Image) > Content (VerticalLayoutGroup + ContentSizeFitter).
-        static void BuildScrollView(RectTransform parent, string text)
+        internal static void BuildScrollView(RectTransform parent, string text)
         {
             var scroll = Ui.Rect("Rules", parent);
             Ui.Size(scroll, height: ViewportHeight);

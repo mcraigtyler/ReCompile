@@ -400,7 +400,7 @@ While playing, the player can save a log of the game and share it, so we can tel
 - [x] **Game record** (`GameRecord`, kept by games made with `Game.Create(..., record: true)`; the client always turns it on): format version, build, platform, mode, card text set (`MainSet1`) and the Protocols without text yet, seed, first seat, player names, the draft pool (or drafted Protocols), and every accepted intent in order, undos included. The engine is deterministic, so that's enough to rebuild any moment of the game
 - [x] **Readable transcript**, in the same file. For each move: the turn, phase, and player; the question being answered (prompt, kind, how many, which card it came from, and every card, line, or option that could be picked, with ids and where each card is); the move; every event, described for an all-seeing viewer (`GameEvent.Everyone`) so hidden cards are named; and the board after it (stacks bottom to top with `~` for face-down cards, totals, Protocols and which are compiled, Control, hands, decks in order, trashes). Lines are field lines, "1st line" to "3rd line" from the first seat's left
 - [x] Rule notes: moves the engine refused are listed with the reason ("(not allowed) Bob plays ...: Metal 2: you can't play cards face-down in this line."), but not replayed; text set off by uncovering or flipping, and picks made for a player, come from the `CardTextRuns` and `ChoiceMadeFor` events
-- [x] **Saving it**, from **Debug → Save game log** at any time and **Save game log** on the result screen: a `.txt` download in the browser (`FileDownload.jslib`), `Logs/Games/` in the Editor, the persistent data folder elsewhere. **Debug → Copy game log** puts it on the clipboard
+- [x] **Saving it**, from **Game → Save game log** at any time and **Save game log** on the result screen: a `.txt` download in the browser (`FileDownload.jslib`), `Logs/Games/` in the Editor, the persistent data folder elsewhere. **Game → Copy game log** puts it on the clipboard
 - [x] If the engine throws, `MatchController` catches it, stops the game (bots too), and the board offers **Save game log**, **Copy game log**, and **Leave game**. The log keeps the failed move (marked in the Moves) and the exception
 - [x] **Replaying a log in tests**: `GameRecord.Load(text)` then `Replay(catalog, effects, moves)` rebuilds the game after any number of moves; a move that's refused on replay throws, saying which. `GameRecordTests` saves and replays 20 recorded random games and checks the transcript comes out identical, replays to partway points, and checks loading errors, hidden cards, refused moves, and an engine failure. Shared logs go in `Tests/EditMode/Engine/Logs/`
 - [x] README: how to save a log and share it
@@ -419,7 +419,7 @@ In brief: tags with the setup (`[P1 "Tyler"] [First "P2"] [Seed "..."] [Pool "..
 - [x] `GameNotation.Write(game)`: replays the game's standing decisions on a new game, writing each decision and then what came of it, without repeating what the decision already said (a delete you chose is written once)
 - [x] `GameNotation.Read(text).Replay(catalog, effects)`: whenever the game waits, the next item is the decision; everything the game then does must match what's written, or it stops and says where. Picks the game made because there was no choice look the same as chosen ones. Notation that stops partway replays to that point
 - [x] Tests (`GameNotationTests`): 200 random games with real text, debug effects, and undos are written, read, and replayed to the same board and the same notation; a game stopped partway; undone moves left out; the spec's example; bad notation
-- [x] Client: **Debug → Copy game notation** and **Copy game notation** on the result screen; the notation is the first section of the saved game log (`== Notation ==`, which `GameRecord.Load` skips)
+- [x] Client: **Game → Copy game notation** and **Copy game notation** on the result screen; the notation is the first section of the saved game log (`== Notation ==`, which `GameRecord.Load` skips)
 - [x] **Load game** on the title screen (and only there): paste a game's notation or a whole game log (a log without notation replays from its Moves). In the browser a page dialog takes the paste or a `.txt` file (`TextDialog.jslib`), since the game can't read the browser's clipboard; elsewhere it reads the clipboard
 - [x] **Replay** on the board (`ReplayController`, `BoardScreen` in replay mode): Back / Next (or the arrow keys), previous / next turn, Switch side, and each move's notation under the step count. The draft is skipped. Moves can't be made, but cards can be hovered and zoomed. Next plays the move so it animates; going back rebuilds the game to that move
 - [x] **Play from here**: a hot-seat game from the move shown, with its own game log (header `mode: hot-seat, carried on from a loaded game after move N`)
@@ -525,7 +525,7 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 **Flow**
 
 - [x] Host and Join use the real service; "Play the computer" on the title screen keeps the stand-in opponent
-- [x] Concede: leaving a game that's still going concedes it (the Debug menu's Concede too)
+- [x] Concede: leaving a game that's still going concedes it (the Game menu's Concede too)
 - [ ] Undo and End turn over the network: only the active player can undo (the engine's rule); the opponent sees the moves taken back (with a log line) and nothing they couldn't already see. Comes free with the views; to check live
 - [ ] Guest disconnect: the host's board shows a 2-minute countdown and then wins by forfeit; the guest's board offers Rejoin, which joins the room again and gets the whole view (a reload works too: Join with the same code). Written, not yet tried live
 - [ ] Host disconnect: the guest's board says the host left (no Rejoin). Written, not yet tried live
@@ -549,14 +549,15 @@ Only the guest's own view crosses the network, so the guest's game log isn't the
 ### Tasks
 
 - [x] Pick a host: **GitHub Pages** (https://mcraigtyler.github.io/ReCompile/). Pages can't send `Content-Encoding`, so the build uses Unity's decompression fallback (the loader unpacks the files), with Gzip, which unpacks faster than Brotli. Files are named by hash, so a new build is never mixed with a cached old one. Well within Pages' limits (100 MB a file, 1 GB a site; the build is about 21 MB). HTTPS, as Relay's WebSockets need
-- [x] Publish script (`tools/publish-pages.ps1`): each release goes in its own folder of the `gh-pages` branch (`release/v0.0.1/`, kept for good), the front page opens the latest, and the source commit is tagged (`v0.0.1`). Releases come from `main` only, matching GitHub's, so every tag is on `main`. The number is the project's version (now `0.0.1`), and a build of another version is refused, as is republishing a version (unless `-Force`); `-NoPush` to look first. Works in a separate worktree, so your checkout isn't touched. README: how to publish
-- [ ] Once, in the repo's **Settings → Pages**: deploy from the `gh-pages` branch, root folder
-- [ ] First published build tried from two browsers on different networks
-- [ ] Production build: stripping level, no development flags, size check (target under 25 MB compressed)
-- [ ] Load-time check on a typical connection
-- [ ] UGS usage check against free-tier limits
-- [ ] About/credits screen crediting Compile (Greater Than Games, Michael Yang) and the card database
-- [ ] Release notes
+- [x] Publish script (`tools/publish-pages.ps1`): each release goes in its own folder of the `gh-pages` branch (`release/v0.0.1/`, kept for good), the front page opens the latest, and the source commit is tagged (`v0.0.1`). Releases come from `main` only, matching GitHub's, so every tag is on `main`. The number is the project's version (now `0.0.2`), and a build of another version is refused, as is republishing a version (unless `-Force`); `-NoPush` to look first. Works in a separate worktree, so your checkout isn't touched. README: how to publish
+- [x] Once, in the repo's **Settings → Pages**: deploy from the `gh-pages` branch, root folder
+- [x] First published build tried from two browsers on different networks
+- [ ] Production build: Managed Stripping Level set to Medium for WebGL (it was unset); the WebGL profile isn't a development build; `Assets/Compile/link.xml` keeps the types online messages are read into. The v0.0.2 build is 23.8 MB (12.6 MB code, 11.1 MB data), under the 25 MB target; v0.0.1 was 26.5 MB (14.3 MB code), over it, because Gzip compresses less than the Brotli of the 21 MB Phase 1 build. To do: check an online game still works with the stripping
+- [x] The board's **Debug** menu is now the **Game** menu: Save game log, Copy game log, Copy game notation, Concede, and Leave game in every build; under a Debug heading, Card effects…, Auto-play, and Opponent leaves only in development builds (`Debug.isDebugBuild`, as online debug effects already were)
+- [ ] Load-time check on a typical connection (DevTools throttled to Fast 4G, first and cached load)
+- [x] UGS usage check against free-tier limits ([pricing](https://unity.com/products/gaming-services/pricing), 2026-11): Relay is free up to 3 GiB per CCU, at most 150 GiB a month; Lobby (which Sessions use) up to 10 GiB a month per region group. Going over **any** free tier blocks all UGS services until paid. A game is 1 session and 2 Relay connections; each move sends both players a view of a few KB (the longest message is about 12 KB), so a game is a few MB and the free tier covers thousands of games a month. Without a payment method on the Unity organization, a spike would block online play rather than cost money
+- [x] About/credits screen (`AboutScreen`, **About** beside **How to play** on the title screen): Compile (Flat River Group / Greater Than Games, Michael Yang), the card database, Unity and UGS, the fonts, the source, and a not-affiliated note
+- [x] Release notes: [`docs/release-notes.md`](release-notes.md), linked from the README
 
 **Done when:** a friend can open the link, host or join, and play a full game without help.
 

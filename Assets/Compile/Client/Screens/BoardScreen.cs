@@ -113,7 +113,7 @@ namespace Compile.Client.Screens
             _hud.ZoomPressed += () => ZoomHandCard(_selected);
             _hud.TrashPressed += ShowTrash;
             if (_replay == null)
-                AddDebugActions();
+                AddGameActions();
             _hud.SetReplay(_replay != null);
 
             App.CameraRig.Show(Frame);
@@ -1092,11 +1092,27 @@ namespace Compile.Client.Screens
             _hud.ShowPrompt(text, buttons.ToArray());
         }
 
-        // ---------- Debug ----------
+        // ---------- Game menu ----------
 
-        void AddDebugActions()
+        void AddGameActions()
         {
-            _hud.AddDebugAction("Card effects…", _hud.ShowEffectsMenu);
+            // The full log needs the engine: here, or on the host of an online game. An online guest gets it
+            // when the game ends (it would show the host's hidden cards before that).
+            var game = _match.LocalGame;
+            if (game != null)
+            {
+                _hud.AddGameAction("Save game log", SaveLog);
+                _hud.AddGameAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(game), seconds: 5f));
+                _hud.AddGameAction("Copy game notation", () => App.Hud.Toast(GameLog.CopyNotation(game)));
+            }
+            _hud.AddGameAction("Concede", () => Submit(new Concede(Viewer)));
+            _hud.AddGameAction("Leave game", () => InMatch.Leave(App));
+
+            // Testing aids, only in development builds (the Editor included).
+            if (!Debug.isDebugBuild)
+                return;
+            _hud.AddGameHeading("Debug");
+            _hud.AddGameAction("Card effects…", _hud.ShowEffectsMenu);
             foreach (var effect in DebugEffects.All)
             {
                 var key = effect.Key;
@@ -1108,28 +1124,17 @@ namespace Compile.Client.Screens
                     Submit(new DebugEffect(Viewer, key));
                 });
             }
-            // The full log needs the engine: here, or on the host of an online game. An online guest gets it
-            // when the game ends (it would show the host's hidden cards before that).
-            var game = _match.LocalGame;
-            if (game != null)
-            {
-                _hud.AddDebugAction("Save game log", SaveLog);
-                _hud.AddDebugAction("Copy game log", () => App.Hud.Toast(GameLog.Copy(game), seconds: 5f));
-                _hud.AddDebugAction("Copy game notation", () => App.Hud.Toast(GameLog.CopyNotation(game)));
-            }
             if (_match is MatchController local)
             {
-                _hud.AddDebugAction("Auto-play a move", local.AutoPlayViewer);
-                _hud.AddDebugAction("Auto-play your turn", () =>
+                _hud.AddGameAction("Auto-play a move", local.AutoPlayViewer);
+                _hud.AddGameAction("Auto-play your turn", () =>
                 {
                     for (var i = 0; i < 50 && local.SeatToMove == Viewer && _view.Stage == GameStage.Playing; i++)
                         local.AutoPlayViewer();
                 });
             }
-            _hud.AddDebugAction("Concede", () => Submit(new Concede(Viewer)));
             if (App.Session is FakeSessionService fake && !App.Match.Hotseat)
-                _hud.AddDebugAction("Opponent leaves", fake.SimulateOpponentLeft);
-            _hud.AddDebugAction("Leave game", () => InMatch.Leave(App));
+                _hud.AddGameAction("Opponent leaves", fake.SimulateOpponentLeft);
         }
     }
 }

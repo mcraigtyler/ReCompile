@@ -2,7 +2,7 @@
 
 A short way to write down a game of Compile, like chess notation (PGN). It fits a whole game in a few dozen lines, reads at a glance, and still replays the game exactly: `GameNotation.Read(text).Replay(catalog, effects)` plays it out again. The full game log (`GameRecord`) is still the one to use for bug reports. The notation is for reading a game back and replaying it.
 
-To get it in a game: **Debug → Copy game notation**, or **Copy game notation** on the result screen. It's also the first section of every saved game log. To watch one, use **Load game** on the title screen: it replays the game move by move, and **Play from here** carries it on as a hot-seat game.
+To get it in a game: **Game → Copy game notation**, or **Copy game notation** on the result screen. It's also the first section of every saved game log. To watch one, use **Load game** on the title screen: it replays the game move by move, and **Play from here** carries it on as a hot-seat game.
 
 ## Example
 

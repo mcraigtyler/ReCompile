@@ -35,7 +35,9 @@ namespace Compile.Client.Screens
             _computer = Ui.Button(panel, "Play the computer (it plays at random)", ButtonStyle.Secondary, PlayComputer);
             Ui.Button(panel, "Load game (watch, then play on)", ButtonStyle.Secondary, () => App.Nav.Go(new LoadGameScreen()));
 
-            Ui.Button(panel, "How to play", ButtonStyle.Quiet, () => App.Nav.Go(new RulesScreen()));
+            var help = Ui.Row(panel, 24f);
+            Ui.Button(help, "How to play", ButtonStyle.Quiet, () => App.Nav.Go(new RulesScreen()));
+            Ui.Button(help, "About", ButtonStyle.Quiet, () => App.Nav.Go(new AboutScreen()));
 
             var version = Ui.Text(panel, $"v{Application.version}", TextStyle.Small, TextAlignmentOptions.Center);
             version.fontSize = 24f;
